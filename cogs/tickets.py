@@ -88,20 +88,27 @@ class CreateTicketModal(discord.ui.Modal):
         required=False
     )
 
-    def __init__(self, category_name: str):
-        super().__init__(title=f"Open {category_name} Ticket")
+    def __init__(self, category_name: str, guild_id: int = None):
+        super().__init__(title=f"Open {category_name[:35]} Ticket")
         self.category_name = category_name
+        self.guild_id = guild_id
 
     async def on_submit(self, interaction: discord.Interaction):
         guild = interaction.guild
         user = interaction.user
         category_name = self.category_name
 
+        # Look up modular category configurations
+        cat_info = await db.get_ticket_category(guild.id, category_name)
+        cat_emoji = cat_info.get("emoji", "🎫") if cat_info else "🎫"
+        cat_channel_id = cat_info.get("category_channel_id") if cat_info else None
+        cat_role_id = cat_info.get("staff_role_id") if cat_info else None
+
         settings = await db.get_guild_settings(guild.id)
-        parent_cat_id = settings.get("ticket_category_id")
+        parent_cat_id = cat_channel_id or settings.get("ticket_category_id")
         parent_cat = guild.get_channel(parent_cat_id) if parent_cat_id else None
 
-        staff_role_id = settings.get("ticket_staff_role_id")
+        staff_role_id = cat_role_id or settings.get("ticket_staff_role_id")
         staff_role = guild.get_role(staff_role_id) if staff_role_id else None
 
         clean_user_name = "".join(c for c in user.name.lower() if c.isalnum() or c in "-_")
@@ -128,7 +135,7 @@ class CreateTicketModal(discord.ui.Modal):
             mention_str += f" | {staff_role.mention}"
 
         welcome_ticket_embed = standard_embed(
-            title=f"🎫 {category_name} Ticket",
+            title=f"{cat_emoji} {category_name} Ticket",
             description=(
                 f"Welcome {user.mention}! Support staff has been notified.\n\n"
                 f"**📌 Subject:** `{self.subject.value}`\n"
@@ -328,77 +335,113 @@ class TicketClosedControlsView(discord.ui.View):
         await db.delete_ticket_record(interaction.channel_id)
         await interaction.channel.delete(reason=f"Ticket closed by {interaction.user}")
 
-# --- Ticket Panel Views ---
-class TicketCategorySelect(discord.ui.Select):
-    def __init__(self):
-        options = [
-            discord.SelectOption(label="General Support", description="Need help, questions, or server support", emoji="🛠️", value="General Support"),
-            discord.SelectOption(label="Buy / Order", description="Purchase products, services, or custom orders", emoji="🛒", value="Buy / Order"),
-            discord.SelectOption(label="Middleman Service", description="Request a safe Middleman (MM) for trade", emoji="🤝", value="Middleman"),
-            discord.SelectOption(label="Report / Appeal", description="Report a user, scam, or submit an appeal", emoji="⚠️", value="Report"),
-        ]
+# --- Modular Ticket Panel Views ---
+class ModularTicketCategorySelect(discord.ui.Select):
+    def __init__(self, categories: list = None):
+        options = []
+        cats = categories or []
+        for cat in cats[:25]:
+            desc = cat.get("description") or "Open a ticket in this category"
+            options.append(discord.SelectOption(
+                label=cat["name"][:100],
+                emoji=cat.get("emoji") or "🎫",
+                description=desc[:100],
+                value=cat["name"]
+            ))
+        if not options:
+            options = [
+                discord.SelectOption(label="Buy / Order", emoji="🛒", description="Purchase products, services, or custom orders", value="Buy / Order"),
+                discord.SelectOption(label="Middleman", emoji="🤝", description="Request a trusted Middleman (MM) for safe trades", value="Middleman"),
+                discord.SelectOption(label="General Support", emoji="🛠️", description="Need help, questions, or server support", value="General Support"),
+                discord.SelectOption(label="Report / Dispute", emoji="⚠️", description="Report a user, scam, or submit an appeal", value="Report / Dispute")
+            ]
         super().__init__(
-            placeholder="🎟️ Select ticket category to open ticket form...",
+            placeholder="🎟️ Select ticket category to open form...",
             min_values=1,
             max_values=1,
-            custom_id="ticket_category_select",
+            custom_id="modular_ticket_select",
             options=options
         )
 
     async def callback(self, interaction: discord.Interaction):
         category_name = self.values[0]
-        # Open Modal so user can enter subject and details
-        await interaction.response.send_modal(CreateTicketModal(category_name))
+        await interaction.response.send_modal(CreateTicketModal(category_name, interaction.guild_id))
+
+class ModularTicketButton(discord.ui.Button):
+    def __init__(self, category_name: str, emoji: str = "🎫", style: discord.ButtonStyle = discord.ButtonStyle.secondary):
+        super().__init__(
+            label=category_name[:80],
+            emoji=emoji,
+            style=style,
+            custom_id=f"modtkt:{category_name}"
+        )
+        self.category_name = category_name
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(CreateTicketModal(self.category_name, interaction.guild_id))
 
 class TicketPanelView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, categories: list = None):
         super().__init__(timeout=None)
-        self.add_item(TicketCategorySelect())
-
-    @discord.ui.button(label="🛒 Order", style=discord.ButtonStyle.success, emoji="🛒", custom_id="btn_panel_order")
-    async def btn_order(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(CreateTicketModal("Buy / Order"))
-
-    @discord.ui.button(label="🤝 Middleman", style=discord.ButtonStyle.primary, emoji="🤝", custom_id="btn_panel_mm")
-    async def btn_mm(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(CreateTicketModal("Middleman"))
-
-    @discord.ui.button(label="🛠️ Support", style=discord.ButtonStyle.secondary, emoji="🛠️", custom_id="btn_panel_support")
-    async def btn_support(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(CreateTicketModal("General Support"))
-
-    @discord.ui.button(label="⚠️ Report", style=discord.ButtonStyle.danger, emoji="⚠️", custom_id="btn_panel_report")
-    async def btn_report(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(CreateTicketModal("Report"))
+        cats = categories or [
+            {"name": "Buy / Order", "emoji": "🛒", "description": "Purchase products, services, or custom orders"},
+            {"name": "Middleman", "emoji": "🤝", "description": "Request a trusted Middleman (MM) for safe trades"},
+            {"name": "General Support", "emoji": "🛠️", "description": "Need help, questions, or server support"},
+            {"name": "Report / Dispute", "emoji": "⚠️", "description": "Report a user, scam, or submit an appeal"}
+        ]
+        self.add_item(ModularTicketCategorySelect(cats))
+        styles = [
+            discord.ButtonStyle.success,
+            discord.ButtonStyle.primary,
+            discord.ButtonStyle.secondary,
+            discord.ButtonStyle.danger,
+            discord.ButtonStyle.primary
+        ]
+        for idx, cat in enumerate(cats[:5]):
+            style = styles[idx % len(styles)]
+            self.add_item(ModularTicketButton(
+                category_name=cat["name"],
+                emoji=cat.get("emoji") or "🎫",
+                style=style
+            ))
 
 # --- Cog Class ---
 class Tickets(commands.Cog):
-    """Advanced customizable ticket system with drop-down menus, modals, transcripts, claim & roles."""
+    """Ultra-modular ticket system with customizable categories, modals, buttons, transcripts, and routing."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        # Register persistent views with timeout=None
         self.bot.add_view(TicketPanelView())
         self.bot.add_view(TicketControlsView())
         self.bot.add_view(TicketClosedControlsView())
+
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction: discord.Interaction):
+        """Global persistent listener for modular category buttons and selects across bot reboots."""
+        if interaction.type != discord.InteractionType.component:
+            return
+        cid = interaction.data.get("custom_id", "")
+        if cid.startswith("modtkt:"):
+            cat_name = cid.split("modtkt:", 1)[1]
+            await interaction.response.send_modal(CreateTicketModal(cat_name, interaction.guild_id))
+        elif cid == "modular_ticket_select":
+            vals = interaction.data.get("values", [])
+            if vals:
+                await interaction.response.send_modal(CreateTicketModal(vals[0], interaction.guild_id))
 
     @commands.command(name="createembed", aliases=["embed"], help="Open the interactive custom embed creator modal.")
     @commands.has_permissions(manage_messages=True)
     async def create_embed_cmd(self, ctx: commands.Context, channel: discord.TextChannel = None):
         target = channel or ctx.channel
-        
         view = discord.ui.View()
         async def btn_cb(interaction: discord.Interaction):
             await interaction.response.send_modal(CreateEmbedModal(target))
-
         btn = discord.ui.Button(label="Open Embed Builder", style=discord.ButtonStyle.primary, emoji="🎨")
         btn.callback = btn_cb
         view.add_item(btn)
-
         await ctx.send(
-            embed=info_embed(
-                "Embed Builder",
-                f"Click below to build and send a custom embed to {target.mention}."
-            ),
+            embed=info_embed("Embed Builder", f"Click below to build and send a custom embed to {target.mention}."),
             view=view
         )
 
@@ -418,35 +461,117 @@ class Tickets(commands.Cog):
         embed.set_footer(text=f"Issued by {ctx.author.display_name} • Zyath Store")
         await ctx.send(embed=embed)
 
-    @commands.command(name="ticketpanel", aliases=["ticketsetup"], help="Send the ticket creation panel with categories and buttons.")
+    @commands.command(name="ticketpanel", aliases=["ticketsetup"], help="Deploy the dynamic modular ticket creation panel.")
     @commands.has_permissions(administrator=True)
     async def ticket_panel(self, ctx: commands.Context, channel: discord.TextChannel = None):
-        channel = channel or ctx.channel
+        target = channel or ctx.channel
+        categories = await db.get_ticket_categories(ctx.guild.id)
+        desc_lines = [
+            "Welcome to our community support desk!",
+            "Choose a category from the dropdown or click a quick button below to open your private ticket.\n",
+            "**📌 Available Categories:**"
+        ]
+        for cat in categories:
+            desc_lines.append(f"• {cat.get('emoji', '🎫')} **{cat['name']}** — *{cat.get('description', 'Click to open ticket')}*")
+        desc_lines.append("\n⚡ *A staff member will assist you immediately.*")
+
         embed = standard_embed(
             title="🎫 Support & Service Tickets",
-            description=(
-                "Need assistance, want to buy something, or require a Middleman?\n"
-                "Use the menu or buttons below to open your private ticket!\n\n"
-                "🔹 **General Support**: Inquiries, questions, help\n"
-                "🔹 **Buy / Order**: Order products or services\n"
-                "🔹 **Middleman Service**: Secure trade mediation\n"
-                "🔹 **Report / Appeal**: User reports and disputes\n\n"
-                "⚡ *A staff member will assist you immediately.*"
-            )
+            description="\n".join(desc_lines),
+            color=0x5865F2
         )
         if ctx.guild.icon:
             embed.set_thumbnail(url=ctx.guild.icon.url)
-        await channel.send(embed=embed, view=TicketPanelView())
-        if channel.id != ctx.channel.id:
-            await ctx.send(embed=success_embed("Panel Created", f"Ticket panel deployed in {channel.mention}."))
+        embed.set_footer(text=f"Zyath Modular Tickets • {ctx.guild.name}")
 
-    @commands.command(name="setticketcategory", aliases=["ticketcat"], help="Set the Discord category where tickets are created.")
+        await target.send(embed=embed, view=TicketPanelView(categories))
+        if target.id != ctx.channel.id:
+            await ctx.send(embed=success_embed("Panel Deployed", f"Modular ticket panel deployed in {target.mention}."))
+
+    @commands.command(name="addcategory", aliases=["addticketcategory"], help="Add or update a modular ticket category. E.g. $addcategory Nitro & Boosts | ⚡ | Cheap Discord Nitro")
+    @commands.has_permissions(administrator=True)
+    async def add_category(self, ctx: commands.Context, *, raw_input: str):
+        parts = [p.strip() for p in raw_input.split("|")]
+        name = parts[0]
+        emoji = parts[1] if len(parts) > 1 else "🎫"
+        description = parts[2] if len(parts) > 2 else "Open a support ticket"
+
+        await db.add_ticket_category(ctx.guild.id, name, emoji, description)
+        await ctx.send(embed=success_embed(
+            "Category Configured",
+            f"✅ Modular ticket category **{emoji} {name}** has been added/updated!\n\n"
+            f"**Description:** `{description}`\n\n"
+            f"💡 **Next Steps:**\n"
+            f"• Route to specific Discord channel: `$setcategorychannel \"{name}\" #Category`\n"
+            f"• Assign specific staff role: `$setcategoryrole \"{name}\" @Role`\n"
+            f"• Refresh ticket panel: `$ticketpanel`"
+        ))
+
+    @commands.command(name="delcategory", aliases=["removeticketcategory", "deletecategory"], help="Delete a modular ticket category. E.g. $delcategory Nitro & Boosts")
+    @commands.has_permissions(administrator=True)
+    async def del_category(self, ctx: commands.Context, *, category_name: str):
+        clean_name = category_name.strip().strip('"').strip("'")
+        success = await db.remove_ticket_category(ctx.guild.id, clean_name)
+        if success:
+            await ctx.send(embed=success_embed("Category Removed", f"Deleted category **{clean_name}**.\nRun `$ticketpanel` to deploy an updated panel."))
+        else:
+            await ctx.send(embed=error_embed("Not Found", f"No category named `{clean_name}` found.\nCheck active categories with `$categories`."))
+
+    @commands.command(name="categories", aliases=["ticketcategories", "listcategories"], help="List all modular ticket categories configured in this server.")
+    async def list_categories(self, ctx: commands.Context):
+        categories = await db.get_ticket_categories(ctx.guild.id)
+        embed = standard_embed(
+            title=f"🎫 {ctx.guild.name} Modular Categories",
+            description="All active ticket modules in this server. Use `$ticketpanel` to deploy.",
+            color=0x5865F2
+        )
+        for cat in categories:
+            chan_str = f"<#{cat['category_channel_id']}>" if cat.get("category_channel_id") else "*Server Default*"
+            role_str = f"<@&{cat['staff_role_id']}>" if cat.get("staff_role_id") else "*Server Default*"
+            embed.add_field(
+                name=f"{cat.get('emoji', '🎫')} {cat['name']}",
+                value=(
+                    f"**Description:** *{cat.get('description', 'N/A')}*\n"
+                    f"**Channel:** {chan_str} | **Staff:** {role_str}"
+                ),
+                inline=False
+            )
+        embed.set_footer(text=f"Total: {len(categories)} categories • Manage: $addcategory / $delcategory")
+        await ctx.send(embed=embed)
+
+    @commands.command(name="setcategorychannel", help="Route a ticket category to a specific Discord category channel. E.g. $setcategorychannel \"Buy / Order\" #ORDERS")
+    @commands.has_permissions(administrator=True)
+    async def set_category_channel(self, ctx: commands.Context, category_name: str, channel: discord.CategoryChannel):
+        clean_name = category_name.strip().strip('"').strip("'")
+        success = await db.update_ticket_category(ctx.guild.id, clean_name, category_channel_id=channel.id)
+        if success:
+            await ctx.send(embed=success_embed("Routing Configured", f"Tickets opened for **{clean_name}** will now be created in **{channel.name}**!"))
+        else:
+            await ctx.send(embed=error_embed("Category Not Found", f"Category `{clean_name}` not found. Check `$categories`."))
+
+    @commands.command(name="setcategoryrole", help="Assign a specific staff role to a ticket category. E.g. $setcategoryrole \"Buy / Order\" @Sales")
+    @commands.has_permissions(administrator=True)
+    async def set_category_role(self, ctx: commands.Context, category_name: str, role: discord.Role):
+        clean_name = category_name.strip().strip('"').strip("'")
+        success = await db.update_ticket_category(ctx.guild.id, clean_name, staff_role_id=role.id)
+        if success:
+            await ctx.send(embed=success_embed("Staff Role Configured", f"Tickets for **{clean_name}** will now alert {role.mention}!"))
+        else:
+            await ctx.send(embed=error_embed("Category Not Found", f"Category `{clean_name}` not found. Check `$categories`."))
+
+    @commands.command(name="resetticketcategories", help="Reset server ticket categories back to standard 4 modular modules.")
+    @commands.has_permissions(administrator=True)
+    async def reset_categories(self, ctx: commands.Context):
+        cats = await db.reset_ticket_categories(ctx.guild.id)
+        await ctx.send(embed=success_embed("Categories Reset", f"Restored {len(cats)} default modular categories (Buy / Order, Middleman, General Support, Report)."))
+
+    @commands.command(name="setticketcategory", aliases=["ticketcat"], help="Set the default Discord category where tickets are created.")
     @commands.has_permissions(administrator=True)
     async def set_ticket_category(self, ctx: commands.Context, category: discord.CategoryChannel):
         await db.update_guild_setting(ctx.guild.id, "ticket_category_id", category.id)
         await ctx.send(embed=success_embed("Ticket Category Configured", f"New tickets will be created under **{category.name}**."))
 
-    @commands.command(name="setticketrole", aliases=["ticketrole"], help="Set the staff role that has access to tickets.")
+    @commands.command(name="setticketrole", aliases=["ticketrole"], help="Set the default staff role that has access to tickets.")
     @commands.has_permissions(administrator=True)
     async def set_ticket_role(self, ctx: commands.Context, role: discord.Role):
         await db.update_guild_setting(ctx.guild.id, "ticket_staff_role_id", role.id)
@@ -505,7 +630,10 @@ class Tickets(commands.Cog):
                 "• `$ticket remove @user` - Remove user from ticket\n"
                 "• `$createembed` - Build custom embed\n"
                 "• `$invoice <amount> <method>` - Post payment invoice\n"
-                "• `$ticketpanel` - Deploy ticket panel"
+                "• `$ticketpanel` - Deploy modular ticket panel\n"
+                "• `$addcategory <name> | [emoji] | [desc]` - Add category\n"
+                "• `$delcategory <name>` - Remove category\n"
+                "• `$categories` - List modular categories"
             ))
 
 async def setup(bot: commands.Bot):

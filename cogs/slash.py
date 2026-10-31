@@ -94,16 +94,30 @@ class SlashCommands(commands.Cog):
             await interaction.followup.send(content="📄 **Ticket Transcript:**", file=file)
 
     # 6. /ticketpanel
-    @app_commands.command(name="ticketpanel", description="Deploy the ticket creation panel with buttons.")
+    @app_commands.command(name="ticketpanel", description="Deploy the modular ticket creation panel with categories and buttons.")
     @app_commands.default_permissions(administrator=True)
     async def slash_ticketpanel(self, interaction: discord.Interaction, channel: discord.TextChannel = None):
         target = channel or interaction.channel
+        categories = await db.get_ticket_categories(interaction.guild_id)
+        desc_lines = [
+            "Welcome to our community support desk!",
+            "Choose a category from the dropdown or click a quick button below to open your private ticket.\n",
+            "**📌 Available Categories:**"
+        ]
+        for cat in categories:
+            desc_lines.append(f"• {cat.get('emoji', '🎫')} **{cat['name']}** — *{cat.get('description', 'Click to open ticket')}*")
+        desc_lines.append("\n⚡ *A staff member will assist you immediately.*")
+
         embed = standard_embed(
             title="🎫 Support & Service Tickets",
-            description="Select a category or click a button below to open a ticket!"
+            description="\n".join(desc_lines),
+            color=0x5865F2
         )
-        await target.send(embed=embed, view=TicketPanelView())
-        await interaction.response.send_message(embed=success_embed("Deployed", f"Panel sent to {target.mention}!"), ephemeral=True)
+        if interaction.guild.icon:
+            embed.set_thumbnail(url=interaction.guild.icon.url)
+        embed.set_footer(text=f"Zyath Modular Tickets • {interaction.guild.name}")
+        await target.send(embed=embed, view=TicketPanelView(categories))
+        await interaction.response.send_message(embed=success_embed("Deployed", f"Modular panel sent to {target.mention}!"), ephemeral=True)
 
     # 7. /vouch
     @app_commands.command(name="vouch", description="Submit a reputation vouch for a member.")

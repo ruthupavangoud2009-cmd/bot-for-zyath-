@@ -111,6 +111,18 @@ CREATE TABLE IF NOT EXISTS no_prefix_users (
     added_by BIGINT NOT NULL,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS ticket_categories (
+    id SERIAL PRIMARY KEY,
+    guild_id BIGINT NOT NULL,
+    name TEXT NOT NULL,
+    emoji TEXT DEFAULT '🎫',
+    description TEXT DEFAULT 'Open a support ticket',
+    category_channel_id BIGINT,
+    staff_role_id BIGINT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(guild_id, name)
+);
 """
 
 SQLITE_SCHEMA = """
@@ -201,6 +213,18 @@ CREATE TABLE IF NOT EXISTS no_prefix_users (
     user_id INTEGER PRIMARY KEY,
     added_by INTEGER NOT NULL,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS ticket_categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    emoji TEXT DEFAULT '🎫',
+    description TEXT DEFAULT 'Open a support ticket',
+    category_channel_id INTEGER,
+    staff_role_id INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(guild_id, name)
 );
 """
 
@@ -693,6 +717,139 @@ class Database:
             async with aiosqlite.connect(self.sqlite_path) as db:
                 await db.execute("DELETE FROM tickets WHERE channel_id = ?", (channel_id,))
                 await db.commit()
+
+    # ==========================================
+    # MODULAR TICKET CATEGORIES
+    # ==========================================
+    async def add_ticket_category(
+        self,
+        guild_id: int,
+        name: str,
+        emoji: str = "🎫",
+        description: str = "Open a support ticket",
+        category_channel_id: Optional[int] = None,
+        staff_role_id: Optional[int] = None
+    ) -> bool:
+        clean_name = name.strip()
+        clean_emoji = emoji.strip() if emoji else "🎫"
+        clean_desc = description.strip() if description else "Open a support ticket"
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO ticket_categories (guild_id, name, emoji, description, category_channel_id, staff_role_id)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    ON CONFLICT (guild_id, name) DO UPDATE SET
+                        emoji = EXCLUDED.emoji,
+                        description = EXCLUDED.description,
+                        category_channel_id = COALESCE(EXCLUDED.category_channel_id, ticket_categories.category_channel_id),
+                        staff_role_id = COALESCE(EXCLUDED.staff_role_id, ticket_categories.staff_role_id)
+                """, guild_id, clean_name, clean_emoji, clean_desc, category_channel_id, staff_role_id)
+                return True
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("""
+                    INSERT INTO ticket_categories (guild_id, name, emoji, description, category_channel_id, staff_role_id)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (guild_id, name) DO UPDATE SET
+                        emoji = excluded.emoji,
+                        description = excluded.description,
+                        category_channel_id = COALESCE(excluded.category_channel_id, ticket_categories.category_channel_id),
+                        staff_role_id = COALESCE(excluded.staff_role_id, ticket_categories.staff_role_id)
+                """, (guild_id, clean_name, clean_emoji, clean_desc, category_channel_id, staff_role_id))
+                await db.commit()
+                return True
+
+    async def get_ticket_categories(self, guild_id: int) -> List[Dict[str, Any]]:
+        rows = []
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                res = await conn.fetch("SELECT * FROM ticket_categories WHERE guild_id = $1 ORDER BY id ASC", guild_id)
+                rows = [dict(r) for r in res]
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("SELECT * FROM ticket_categories WHERE guild_id = ? ORDER BY id ASC", (guild_id,))
+                res = await cursor.fetchall()
+                rows = [dict(r) for r in res]
+
+        if not rows:
+            default_categories = [
+                {"name": "Buy / Order", "emoji": "🛒", "description": "Purchase products, services, or custom orders"},
+                {"name": "Middleman", "emoji": "🤝", "description": "Request a trusted Middleman (MM) for safe trades"},
+                {"name": "General Support", "emoji": "🛠️", "description": "Need help, questions, or server support"},
+                {"name": "Report / Dispute", "emoji": "⚠️", "description": "Report a user, scam, or submit an appeal"}
+            ]
+            for c in default_categories:
+                await self.add_ticket_category(guild_id, c["name"], c["emoji"], c["description"])
+            return await self.get_ticket_categories(guild_id)
+
+        return rows
+
+    async def get_ticket_category(self, guild_id: int, name: str) -> Optional[Dict[str, Any]]:
+        clean = name.strip()
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT * FROM ticket_categories WHERE guild_id = $1 AND LOWER(name) = LOWER($2)", guild_id, clean)
+                return dict(row) if row else None
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("SELECT * FROM ticket_categories WHERE guild_id = ? AND LOWER(name) = LOWER(?)", (guild_id, clean))
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+
+    async def remove_ticket_category(self, guild_id: int, name: str) -> bool:
+        clean = name.strip()
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                res = await conn.execute("DELETE FROM ticket_categories WHERE guild_id = $1 AND LOWER(name) = LOWER($2)", guild_id, clean)
+                parts = res.split()
+                return int(parts[1]) > 0 if len(parts) > 1 else False
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("DELETE FROM ticket_categories WHERE guild_id = ? AND LOWER(name) = LOWER(?)", (guild_id, clean))
+                await db.commit()
+                return cursor.rowcount > 0
+
+    async def update_ticket_category(self, guild_id: int, name: str, **kwargs) -> bool:
+        if not kwargs:
+            return False
+        clean = name.strip()
+        cols = []
+        vals = []
+        for k, v in kwargs.items():
+            if k in ["emoji", "description", "category_channel_id", "staff_role_id"]:
+                cols.append(k)
+                vals.append(v)
+        if not cols:
+            return False
+
+        if self.is_postgres and self.pool:
+            set_clause = ", ".join(f"{col} = ${i+1}" for i, col in enumerate(cols))
+            vals.extend([guild_id, clean])
+            q = f"UPDATE ticket_categories SET {set_clause} WHERE guild_id = ${len(vals)-1} AND LOWER(name) = LOWER(${len(vals)})"
+            async with self.pool.acquire() as conn:
+                res = await conn.execute(q, *vals)
+                return "UPDATE 0" not in res
+        else:
+            set_clause = ", ".join(f"{col} = ?" for col in cols)
+            vals.extend([guild_id, clean])
+            q = f"UPDATE ticket_categories SET {set_clause} WHERE guild_id = ? AND LOWER(name) = LOWER(?)"
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute(q, tuple(vals))
+                await db.commit()
+                return cursor.rowcount > 0
+
+    async def reset_ticket_categories(self, guild_id: int) -> List[Dict[str, Any]]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("DELETE FROM ticket_categories WHERE guild_id = $1", guild_id)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("DELETE FROM ticket_categories WHERE guild_id = ?", (guild_id,))
+                await db.commit()
+        return await self.get_ticket_categories(guild_id)
+
 
     # ==========================================
     # PAYMENT METHODS

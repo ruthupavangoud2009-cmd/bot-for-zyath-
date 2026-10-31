@@ -40,18 +40,8 @@ class Fun(commands.Cog):
         self.active_spams = {}
 
     @commands.command(name="say", help="Make the bot say something and delete your message. E.g. $say hi")
-    async def say(self, ctx: commands.Context, *, message: str = None):
-        # Delete author's trigger message immediately
-        try:
-            await ctx.message.delete()
-        except Exception:
-            pass
-
-        # If user ran $say without args, default to "hi"
-        if not message:
-            message = "hi"
-
-        # Check if user attached any files/images to the message and forward them
+    async def say(self, ctx: commands.Context, *, message: str = "hi"):
+        # Check if user attached any files/images first before deleting
         files = []
         if ctx.message.attachments:
             for attachment in ctx.message.attachments:
@@ -60,10 +50,18 @@ class Fun(commands.Cog):
                 except Exception:
                     pass
 
+        # Delete author's trigger message immediately
+        try:
+            await ctx.message.delete()
+        except Exception:
+            pass
+
+        msg_text = message.strip() if (message and message.strip()) else "hi"
+
         if files:
-            await ctx.send(content=message, files=files)
+            await ctx.send(content=msg_text, files=files)
         else:
-            await ctx.send(message)
+            await ctx.send(msg_text)
 
     @commands.command(name="hi", help="Say hi to Zyath Bot with a sleek interactive greeting!")
     async def hi_command(self, ctx: commands.Context):

@@ -28,21 +28,24 @@ MODULES = {
         ]
     },
     "tickets": {
-        "title": "🎫 Advanced Ticket System",
-        "description": "Fully automated, interactive support tickets with modals, transcripts, invoices, and claim features.",
+        "title": "🎫 Ultra-Modular Ticket System",
+        "description": "Fully modular, interactive tickets with custom categories, buttons, dropdowns, routing, modals, and invoices.",
         "emoji": "🎫",
         "color": 0x5865F2,
         "commands": [
-            ("`$ticketpanel [#channel]`", "Deploy the interactive ticket creation panel with categories & buttons."),
-            ("`$createembed [#channel]`", "Open the interactive custom embed creator modal."),
-            ("`$invoice <amount> <method> [product]`", "Send an official order payment invoice inside a ticket."),
-            ("`$setticketcategory <category_id>`", "Set the Discord category under which tickets are opened."),
-            ("`$setticketrole @role`", "Set the support staff role pinged and granted access to tickets."),
-            ("`$setticketlogs #channel`", "Set the transcript and ticket audit archive channel."),
-            ("`$ticket close`", "Close the current active ticket channel."),
-            ("`$ticket transcript`", "Export an aesthetic HTML transcript of this ticket."),
-            ("`$ticket add @user`", "Add a member to the active ticket."),
-            ("`$ticket remove @user`", "Remove a member from the active ticket.")
+            ("`$ticketpanel [#channel]`", "Deploy the dynamic modular ticket panel with dropdown & buttons."),
+            ("`$addcategory <name> | [emoji] | [desc]`", "Create or update a custom modular ticket category."),
+            ("`$delcategory <name>`", "Delete a modular ticket category from the server."),
+            ("`$categories`", "List all active modular ticket categories with routing details."),
+            ("`$setcategorychannel <name> <#cat>`", "Route a specific category to its own Discord category channel."),
+            ("`$setcategoryrole <name> <@role>`", "Assign a specific staff alert role to a category."),
+            ("`$resetticketcategories`", "Reset categories back to default 4 modules."),
+            ("`$setticketcategory <#category>`", "Set server default Discord category for tickets."),
+            ("`$setticketrole <@role>`", "Set server default staff role for tickets."),
+            ("`$setticketlogs <#channel>`", "Set transcript and ticket audit archive channel."),
+            ("`$createembed [#channel]`", "Open interactive custom embed creator modal."),
+            ("`$invoice <amount> <method> [product]`", "Send official order payment invoice inside a ticket."),
+            ("`$ticket <close|transcript|add|remove>`", "Quick ticket actions inside an active channel.")
         ]
     },
     "vouches": {
