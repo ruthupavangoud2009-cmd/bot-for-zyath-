@@ -9,13 +9,13 @@ class Vouches(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.command(name="setvouchchannel", help="Set the channel where all vouches will be logged.")
+    @commands.command(name="setvouchchannel", aliases=["svc"], help="Set the channel where all vouches will be logged.")
     @commands.has_permissions(administrator=True)
     async def set_vouch_channel(self, ctx: commands.Context, channel: discord.TextChannel):
         await db.update_guild_setting(ctx.guild.id, "vouch_channel_id", channel.id)
         await ctx.send(embed=success_embed("Vouch Channel Configured", f"Vouches will be logged in {channel.mention}."))
 
-    @commands.command(name="vouch", help="Vouch for a user. E.g. $vouch @user 5 Fast and legit trader!")
+    @commands.command(name="vouch", aliases=["v"], help="Vouch for a user. E.g. $vouch @user 5 Fast and legit trader!")
     async def vouch(self, ctx: commands.Context, member: discord.Member, *args):
         if member.id == ctx.author.id:
             return await ctx.send(embed=error_embed("Invalid Target", "You cannot vouch for yourself!"))
@@ -76,7 +76,7 @@ class Vouches(commands.Cog):
         else:
             await ctx.send(embed=embed)
 
-    @commands.command(name="vouches", aliases=["rep", "reputation"], help="Check vouches for yourself or another user.")
+    @commands.command(name="vouches", aliases=["rep", "reputation", "vs"], help="Check vouches for yourself or another user.")
     async def view_vouches(self, ctx: commands.Context, member: discord.Member = None):
         member = member or ctx.author
         vouches = await db.get_vouches(ctx.guild.id, member.id)

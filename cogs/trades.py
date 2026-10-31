@@ -155,13 +155,13 @@ class Trades(commands.Cog):
                 return channel
         return ctx.channel
 
-    @commands.command(name="settradechannel", help="Set dedicated channel for live trade receipts.")
+    @commands.command(name="settradechannel", aliases=["stc", "tradechan"], help="Set dedicated channel for live trade receipts.")
     @commands.has_permissions(administrator=True)
     async def set_trade_channel(self, ctx: commands.Context, channel: discord.TextChannel):
         await db.update_guild_setting(ctx.guild.id, "trade_channel_id", channel.id)
         await ctx.send(embed=success_embed("Trade Channel Set", f"Live MM receipts will be posted in {channel.mention}."))
 
-    @commands.command(name="mercy", help="Log an MM transaction in the vouch/trade channel. E.g. $mercy or $mercy @buyer @seller $50 Item description")
+    @commands.command(name="mercy", aliases=["mrc", "deal", "mm"], help="Log an MM transaction in the vouch/trade channel. E.g. $mercy or $mercy @buyer @seller $50 Item description")
     async def mercy_cmd(self, ctx: commands.Context, buyer: discord.Member = None, seller: discord.Member = None, amount: str = None, *, details: str = None):
         target_channel = await self.get_destination_channel(ctx)
 
@@ -218,7 +218,7 @@ class Trades(commands.Cog):
             view=view
         )
 
-    @commands.command(name="trade", help="Check status of a trade. E.g. $trade TRD-1234")
+    @commands.command(name="trade", aliases=["trd", "dealinfo"], help="Check status of a trade. E.g. $trade TRD-1234")
     async def trade_info(self, ctx: commands.Context, trade_id: str):
         trade_id = trade_id.upper()
         trade = await db.get_trade(trade_id)

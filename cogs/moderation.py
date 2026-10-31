@@ -37,13 +37,13 @@ class Moderation(commands.Cog):
                 except Exception:
                     pass
 
-    @commands.command(name="setmodlog", help="Set the channel where moderation actions will be logged.")
+    @commands.command(name="setmodlog", aliases=["sml"], help="Set the channel where moderation actions will be logged.")
     @commands.has_permissions(administrator=True)
     async def set_modlog(self, ctx: commands.Context, channel: discord.TextChannel):
         await db.update_guild_setting(ctx.guild.id, "modlog_channel_id", channel.id)
         await ctx.send(embed=success_embed("Mod Log Channel Set", f"Moderation logs will now be sent to {channel.mention}."))
 
-    @commands.command(name="kick", help="Kick a member from the server.")
+    @commands.command(name="kick", aliases=["k"], help="Kick a member from the server.")
     @commands.has_permissions(kick_members=True)
     @commands.bot_has_permissions(kick_members=True)
     async def kick(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"):
@@ -62,7 +62,7 @@ class Moderation(commands.Cog):
         await ctx.send(embed=embed)
         await self.log_action(ctx.guild, embed)
 
-    @commands.command(name="ban", help="Ban a member from the server.")
+    @commands.command(name="ban", aliases=["b"], help="Ban a member from the server.")
     @commands.has_permissions(ban_members=True)
     @commands.bot_has_permissions(ban_members=True)
     async def ban(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"):
@@ -81,7 +81,7 @@ class Moderation(commands.Cog):
         await ctx.send(embed=embed)
         await self.log_action(ctx.guild, embed)
 
-    @commands.command(name="unban", help="Unban a user by their ID.")
+    @commands.command(name="unban", aliases=["ub"], help="Unban a user by their ID.")
     @commands.has_permissions(ban_members=True)
     @commands.bot_has_permissions(ban_members=True)
     async def unban(self, ctx: commands.Context, user_id: int, *, reason: str = "No reason provided"):
@@ -96,7 +96,7 @@ class Moderation(commands.Cog):
         except Exception as e:
             await ctx.send(embed=error_embed("Error", str(e)))
 
-    @commands.command(name="mute", aliases=["timeout"], help="Timeout/mute a member. E.g. $mute @user 10m [reason]")
+    @commands.command(name="mute", aliases=["timeout", "m"], help="Timeout/mute a member. E.g. $mute @user 10m [reason]")
     @commands.has_permissions(moderate_members=True)
     @commands.bot_has_permissions(moderate_members=True)
     async def mute(self, ctx: commands.Context, member: discord.Member, duration: str, *, reason: str = "No reason provided"):
@@ -115,7 +115,7 @@ class Moderation(commands.Cog):
         await ctx.send(embed=embed)
         await self.log_action(ctx.guild, embed)
 
-    @commands.command(name="unmute", help="Remove timeout/mute from a member.")
+    @commands.command(name="unmute", aliases=["um"], help="Remove timeout/mute from a member.")
     @commands.has_permissions(moderate_members=True)
     @commands.bot_has_permissions(moderate_members=True)
     async def unmute(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"):
@@ -124,7 +124,7 @@ class Moderation(commands.Cog):
         await ctx.send(embed=embed)
         await self.log_action(ctx.guild, embed)
 
-    @commands.command(name="warn", help="Warn a member.")
+    @commands.command(name="warn", aliases=["w"], help="Warn a member.")
     @commands.has_permissions(moderate_members=True)
     async def warn(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"):
         warn_id = await db.add_warning(ctx.guild.id, member.id, ctx.author.id, reason)
@@ -145,7 +145,7 @@ class Moderation(commands.Cog):
         await ctx.send(embed=embed)
         await self.log_action(ctx.guild, embed)
 
-    @commands.command(name="warnings", help="Check warnings for a member.")
+    @commands.command(name="warnings", aliases=["warns", "ws"], help="Check warnings for a member.")
     @commands.has_permissions(moderate_members=True)
     async def warnings(self, ctx: commands.Context, member: discord.Member):
         warns = await db.get_warnings(ctx.guild.id, member.id)
@@ -165,13 +165,13 @@ class Moderation(commands.Cog):
         )
         await ctx.send(embed=embed)
 
-    @commands.command(name="clearwarnings", help="Clear all warnings for a member.")
+    @commands.command(name="clearwarnings", aliases=["cwarns", "cw"], help="Clear all warnings for a member.")
     @commands.has_permissions(moderate_members=True)
     async def clearwarnings(self, ctx: commands.Context, member: discord.Member):
         count = await db.clear_warnings(ctx.guild.id, member.id)
         await ctx.send(embed=success_embed("Warnings Cleared", f"Cleared **{count}** warning(s) for {member.mention}."))
 
-    @commands.command(name="purge", aliases=["clear"], help="Bulk delete messages. E.g. $purge 20 [@user]")
+    @commands.command(name="purge", aliases=["clear", "p", "c"], help="Bulk delete messages. E.g. $purge 20 [@user]")
     @commands.has_permissions(manage_messages=True)
     @commands.bot_has_permissions(manage_messages=True)
     async def purge(self, ctx: commands.Context, limit: int, member: discord.Member = None):
@@ -189,7 +189,7 @@ class Moderation(commands.Cog):
         msg = await ctx.send(embed=success_embed("Purged Messages", f"Successfully deleted **{len(deleted)}** messages."))
         await msg.delete(delay=4)
 
-    @commands.command(name="lock", help="Lock a channel to prevent regular members from chatting.")
+    @commands.command(name="lock", aliases=["l"], help="Lock a channel to prevent regular members from chatting.")
     @commands.has_permissions(manage_channels=True)
     @commands.bot_has_permissions(manage_channels=True)
     async def lock(self, ctx: commands.Context, channel: discord.TextChannel = None, *, reason: str = "Channel locked by moderator"):
@@ -204,7 +204,7 @@ class Moderation(commands.Cog):
         if channel.id != ctx.channel.id:
             await ctx.send(embed=success_embed("Channel Locked", f"Successfully locked {channel.mention}."))
 
-    @commands.command(name="unlock", help="Unlock a previously locked channel.")
+    @commands.command(name="unlock", aliases=["ul"], help="Unlock a previously locked channel.")
     @commands.has_permissions(manage_channels=True)
     @commands.bot_has_permissions(manage_channels=True)
     async def unlock(self, ctx: commands.Context, channel: discord.TextChannel = None):
@@ -219,7 +219,7 @@ class Moderation(commands.Cog):
         if channel.id != ctx.channel.id:
             await ctx.send(embed=success_embed("Channel Unlocked", f"Successfully unlocked {channel.mention}."))
 
-    @commands.command(name="slowmode", help="Set channel slowmode in seconds. E.g. $slowmode 5")
+    @commands.command(name="slowmode", aliases=["sm"], help="Set channel slowmode in seconds. E.g. $slowmode 5")
     @commands.has_permissions(manage_channels=True)
     @commands.bot_has_permissions(manage_channels=True)
     async def slowmode(self, ctx: commands.Context, seconds: int, channel: discord.TextChannel = None):

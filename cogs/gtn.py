@@ -11,7 +11,7 @@ class GuessTheNumber(commands.Cog):
         # Active games per channel_id: {channel_id: {"target": int, "min": int, "max": int, "guesses": int, "starter": int}}
         self.active_games = {}
 
-    @commands.command(name="gtn", aliases=["guessthenumber"], help="Start a Guess The Number game. E.g. $gtn 1 5000")
+    @commands.command(name="gtn", aliases=["guessthenumber", "guess"], help="Start a Guess The Number game. E.g. $gtn 1 5000")
     @commands.has_permissions(manage_channels=True)
     async def start_gtn(self, ctx: commands.Context, min_val: int = 1, max_val: int = 1000):
         if min_val >= max_val:
@@ -31,6 +31,25 @@ class GuessTheNumber(commands.Cog):
             "starter": ctx.author.id
         }
 
+        # Send the secret answer to the host in private DMs
+        dm_status = ""
+        try:
+            host_embed = standard_embed(
+                title="🎯 GTN • Secret Host Answer",
+                description=(
+                    f"You started a Guess The Number game in {ctx.channel.mention}!\n\n"
+                    f"🔢 **Secret Target Number:** `{target_number}`\n"
+                    f"📊 **Range:** Between `{min_val}` and `{max_val}`\n\n"
+                    f"🤫 *Keep this number secret to ensure a fair competition!*"
+                ),
+                color=0x57F287
+            )
+            host_embed.set_footer(text=f"Server: {ctx.guild.name}")
+            await ctx.author.send(embed=host_embed)
+            dm_status = "\n📩 *Secret answer sent to host's DMs!*"
+        except Exception:
+            dm_status = "\n⚠️ *(Could not DM secret answer to host - please open your DMs)*"
+
         embed = standard_embed(
             title="🎮 Guess The Number Started!",
             description=(
@@ -38,7 +57,7 @@ class GuessTheNumber(commands.Cog):
                 f"🔢 **Range:** Between `{min_val}` and `{max_val}`\n"
                 f"➕ Bot reacts with `➕` if your guess is **LOWER** than the secret number (guess higher!)\n"
                 f"➖ Bot reacts with `➖` if your guess is **HIGHER** than the secret number (guess lower!)\n\n"
-                f"🏆 The first person to guess correctly will be crowned **WINNER** and this channel will be locked!\n\n"
+                f"🏆 First person to guess correctly will be crowned **WINNER** and this channel will be locked!{dm_status}\n\n"
                 f"Good luck everyone!"
             ),
             color=0x5865F2
@@ -46,7 +65,7 @@ class GuessTheNumber(commands.Cog):
         embed.set_footer(text=f"Game hosted by {ctx.author.display_name}")
         await ctx.send(embed=embed)
 
-    @commands.command(name="gtnstop", help="Stop an active Guess The Number game in this channel.")
+    @commands.command(name="gtnstop", aliases=["gstop", "endgtn", "gtnx"], help="Stop an active Guess The Number game in this channel.")
     @commands.has_permissions(manage_channels=True)
     async def stop_gtn(self, ctx: commands.Context):
         if ctx.channel.id not in self.active_games:
@@ -55,7 +74,7 @@ class GuessTheNumber(commands.Cog):
         game = self.active_games.pop(ctx.channel.id)
         await ctx.send(embed=info_embed("Game Stopped", f"The game was stopped by {ctx.author.mention}.\nThe secret number was **{game['target']}**."))
 
-    @commands.command(name="gtnstatus", help="Check current GTN game range and guess count.")
+    @commands.command(name="gtnstatus", aliases=["gstatus", "gtns", "ginfo"], help="Check current GTN game range and guess count.")
     async def status_gtn(self, ctx: commands.Context):
         if ctx.channel.id not in self.active_games:
             return await ctx.send(embed=info_embed("No Game Running", "No active Guess The Number game in this channel."))

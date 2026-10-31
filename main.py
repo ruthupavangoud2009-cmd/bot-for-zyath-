@@ -8,6 +8,7 @@ from colorama import Fore, Style, init
 
 from utils.database import db
 from utils.embeds import error_embed
+from utils.keep_alive import start_web_server
 
 # Initialize colorama
 init(autoreset=True)
@@ -76,6 +77,12 @@ class ZyathBot(commands.Bot):
         # Initialize SQLite database schema
         await db.init()
         print(f"{Fore.GREEN}[DATABASE]{Style.RESET_ALL} SQLite database initialized successfully.")
+
+        # Start 24/7 web server for Render port binding
+        try:
+            await start_web_server()
+        except Exception as e:
+            print(f"{Fore.YELLOW}[WEB SERVER]{Style.RESET_ALL} Could not bind web server: {e}")
 
         # Load all cogs
         initial_extensions = [

@@ -142,7 +142,7 @@ class Fun(commands.Cog):
         )
         await ctx.send(embed=embed)
 
-    @commands.command(name="coinflip", aliases=["flip"], help="Flip a coin.")
+    @commands.command(name="coinflip", aliases=["flip", "cf"], help="Flip a coin.")
     async def coin_flip(self, ctx: commands.Context):
         result = random.choice(["Heads 🪙", "Tails 🪙"])
         await ctx.send(embed=info_embed("Coin Flip", f"The coin landed on **{result}**!"))
@@ -169,7 +169,7 @@ class Fun(commands.Cog):
         ]
         await ctx.send(f"{member.mention} {random.choice(roasts)}")
 
-    @commands.command(name="avatar", aliases=["av"], help="Get a member's avatar.")
+    @commands.command(name="avatar", aliases=["av", "pfp"], help="Get a member's avatar.")
     async def avatar(self, ctx: commands.Context, member: discord.Member = None):
         member = member or ctx.author
         embed = standard_embed(
@@ -178,7 +178,7 @@ class Fun(commands.Cog):
         )
         await ctx.send(embed=embed)
 
-    @commands.command(name="userinfo", aliases=["whois"], help="Get information about a user.")
+    @commands.command(name="userinfo", aliases=["whois", "ui", "uinfo"], help="Get information about a user.")
     async def user_info(self, ctx: commands.Context, member: discord.Member = None):
         member = member or ctx.author
         roles = [r.mention for r in member.roles if r.name != "@everyone"]
@@ -197,7 +197,7 @@ class Fun(commands.Cog):
         embed.add_field(name=f"🎭 Roles [{len(roles)}]", value=roles_str[:1024] if len(roles_str) < 1024 else f"{len(roles)} roles", inline=False)
         await ctx.send(embed=embed)
 
-    @commands.command(name="serverinfo", help="Get information about the server.")
+    @commands.command(name="serverinfo", aliases=["si", "sinfo"], help="Get information about the server.")
     async def server_info(self, ctx: commands.Context):
         g = ctx.guild
         embed = standard_embed(

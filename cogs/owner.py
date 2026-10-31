@@ -23,12 +23,12 @@ class Owner(commands.Cog):
         self.bot = bot
         self.start_time = datetime.utcnow()
 
-    @commands.command(name="reload", help="Hot reload a cog or all cogs without downtime. E.g. $reload shop or $reload all")
+    @commands.command(name="reload", aliases=["rl"], help="Hot reload a cog or all cogs without downtime. E.g. $reload shop or $reload all")
     @is_bot_owner()
     async def reload_cog(self, ctx: commands.Context, cog_name: str):
         cogs = [
             "moderation", "tickets", "welcomer", "gtn", "vouches",
-            "trades", "shop", "fun", "help", "owner"
+            "trades", "shop", "fun", "help", "owner", "slash"
         ]
         
         target = cog_name.lower().replace("cogs.", "").strip()
@@ -88,7 +88,7 @@ class Owner(commands.Cog):
         except Exception as e:
             await ctx.send(embed=error_embed("DM Failed", f"Could not message user: {str(e)}"))
 
-    @commands.command(name="botstats", aliases=["diagnostics"], help="View hardware, database, and system statistics.")
+    @commands.command(name="botstats", aliases=["diagnostics", "bs", "stats"], help="View hardware, database, and system statistics.")
     @is_bot_owner()
     async def system_diagnostics(self, ctx: commands.Context):
         uptime = datetime.utcnow() - self.start_time
