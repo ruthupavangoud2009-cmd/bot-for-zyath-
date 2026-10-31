@@ -121,5 +121,61 @@ class Owner(commands.Cog):
 
         await ctx.send(embed=embed)
 
+    @commands.group(name="np", invoke_without_command=True, help="Manage no-prefix authorized users. E.g. $np add @user")
+    @is_bot_owner()
+    async def np_group(self, ctx: commands.Context):
+        await ctx.send(embed=info_embed(
+            "No-Prefix Management",
+            "• `$np add @user` - Grant no-prefix access (run commands without `$`).\n"
+            "• `$np remove @user` - Revoke no-prefix access.\n"
+            "• `$np list` - List all authorized no-prefix users."
+        ))
+
+    @np_group.command(name="add", help="Authorize a user to run all commands without prefix.")
+    @is_bot_owner()
+    async def np_add(self, ctx: commands.Context, member: discord.Member):
+        await db.add_no_prefix_user(member.id, ctx.author.id)
+        await ctx.send(embed=success_embed(
+            "No-Prefix Granted",
+            f"🌟 {member.mention} (`{member.id}`) can now run all bot commands **without prefix**!"
+        ))
+
+    @np_group.command(name="remove", aliases=["del", "rem"], help="Revoke no-prefix access for a user.")
+    @is_bot_owner()
+    async def np_remove(self, ctx: commands.Context, member: discord.Member):
+        removed = await db.remove_no_prefix_user(member.id)
+        if removed:
+            await ctx.send(embed=success_embed("No-Prefix Revoked", f"Removed no-prefix access for {member.mention}."))
+        else:
+            await ctx.send(embed=error_embed("Not Found", f"{member.mention} was not in the no-prefix list."))
+
+    @np_group.command(name="list", help="List all users authorized to run commands without prefix.")
+    @is_bot_owner()
+    async def np_list(self, ctx: commands.Context):
+        users = await db.get_all_no_prefix_users()
+        desc = "**Default Owners (Permanent NP):**\n• <@1521774957065928734>\n• <@1505515188991033409>\n\n**Authorized Users:**\n"
+        if not users:
+            desc += "*No additional users authorized.*"
+        else:
+            for u in users:
+                desc += f"• <@{u['user_id']}> (`{u['user_id']}`) — added by <@{u['added_by']}>\n"
+
+        embed = standard_embed(
+            title="⚡ No-Prefix Whitelist",
+            description=desc,
+            color=0x57F287
+        )
+        await ctx.send(embed=embed)
+
+    @commands.command(name="sync", help="Sync application slash commands tree.")
+    @is_bot_owner()
+    async def sync_tree(self, ctx: commands.Context):
+        msg = await ctx.send("🔄 Syncing slash commands to Discord...")
+        try:
+            synced = await self.bot.tree.sync()
+            await msg.edit(content=f"✅ Successfully synced **{len(synced)}** slash commands globally!")
+        except Exception as e:
+            await msg.edit(content=f"❌ Error syncing commands: {str(e)}")
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(Owner(bot))

@@ -30,18 +30,6 @@ def get_config_prefix():
 
 DEFAULT_PREFIX = get_config_prefix() or ENV_PREFIX or "$"
 
-async def get_prefix(bot, message):
-    if not message.guild:
-        return DEFAULT_PREFIX
-    try:
-        settings = await db.get_guild_settings(message.guild.id)
-        return settings.get("prefix") or DEFAULT_PREFIX
-    except Exception:
-        return DEFAULT_PREFIX
-
-# Setup bot intents
-intents = discord.Intents.all()
-
 def get_config_owner_ids():
     ids = {1521774957065928734, 1505515188991033409}
     if os.path.exists(CONFIG_PATH):
@@ -55,6 +43,24 @@ def get_config_owner_ids():
     return ids
 
 OWNER_IDS = get_config_owner_ids()
+
+async def get_prefix(bot, message):
+    guild_prefix = DEFAULT_PREFIX
+    if message.guild:
+        try:
+            settings = await db.get_guild_settings(message.guild.id)
+            guild_prefix = settings.get("prefix") or DEFAULT_PREFIX
+        except Exception:
+            guild_prefix = DEFAULT_PREFIX
+
+    # Check if author is an owner or in no-prefix whitelist
+    author_id = message.author.id if message.author else 0
+    if author_id in OWNER_IDS or db.is_no_prefix_cached(author_id):
+        return (guild_prefix, "")
+    return guild_prefix
+
+# Setup bot intents
+intents = discord.Intents.all()
 
 class ZyathBot(commands.Bot):
     def __init__(self):
@@ -82,7 +88,8 @@ class ZyathBot(commands.Bot):
             "cogs.shop",
             "cogs.fun",
             "cogs.help",
-            "cogs.owner"
+            "cogs.owner",
+            "cogs.slash"
         ]
 
         for ext in initial_extensions:
@@ -95,6 +102,11 @@ class ZyathBot(commands.Bot):
         # Extensions loaded successfully
 
     async def on_ready(self):
+        try:
+            synced = await self.tree.sync()
+            print(f"{Fore.GREEN}[SLASH COMMANDS]{Style.RESET_ALL} Synced {len(synced)} slash commands.")
+        except Exception as e:
+            print(f"{Fore.YELLOW}[SLASH COMMANDS]{Style.RESET_ALL} Note: Tree sync will complete once connected: {e}")
         banner = f"""
 {Fore.MAGENTA}====================================================
 {Fore.CYAN}       ⚡ ZYATH MULTI-PURPOSE DISCORD BOT ⚡

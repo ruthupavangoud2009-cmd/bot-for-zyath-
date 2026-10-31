@@ -117,7 +117,28 @@ class Database:
                 )
             """)
 
+            # No-Prefix Users table
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS no_prefix_users (
+                    user_id INTEGER PRIMARY KEY,
+                    added_by INTEGER NOT NULL,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
             await db.commit()
+            await self.load_np_cache()
+
+    async def load_np_cache(self):
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute("SELECT user_id FROM no_prefix_users")
+            rows = await cursor.fetchall()
+            self._np_cache = {r[0] for r in rows}
+
+    def is_no_prefix_cached(self, user_id: int) -> bool:
+        if not hasattr(self, "_np_cache"):
+            self._np_cache = set()
+        return user_id in self._np_cache
 
     # --- Guild Settings ---
     async def get_guild_settings(self, guild_id: int):
@@ -338,5 +359,33 @@ class Database:
             cursor = await db.execute("SELECT tos_text FROM shop_tos WHERE guild_id = ?", (guild_id,))
             row = await cursor.fetchone()
             return row[0] if row else None
+
+    # --- No Prefix ---
+    async def add_no_prefix_user(self, user_id: int, added_by: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("""
+                INSERT INTO no_prefix_users (user_id, added_by) VALUES (?, ?)
+                ON CONFLICT(user_id) DO NOTHING
+            """, (user_id, added_by))
+            await db.commit()
+        if not hasattr(self, "_np_cache"):
+            self._np_cache = set()
+        self._np_cache.add(user_id)
+
+    async def remove_no_prefix_user(self, user_id: int) -> bool:
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute("DELETE FROM no_prefix_users WHERE user_id = ?", (user_id,))
+            await db.commit()
+            removed = cursor.rowcount > 0
+        if removed and hasattr(self, "_np_cache"):
+            self._np_cache.discard(user_id)
+        return removed
+
+    async def get_all_no_prefix_users(self):
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute("SELECT * FROM no_prefix_users ORDER BY timestamp DESC")
+            rows = await cursor.fetchall()
+            return [dict(r) for r in rows]
 
 db = Database()

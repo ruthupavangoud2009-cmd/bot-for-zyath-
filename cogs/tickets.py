@@ -6,6 +6,145 @@ from utils.database import db
 from utils.transcript import generate_html_transcript, generate_text_transcript
 
 # --- Modals ---
+class CreateEmbedModal(discord.ui.Modal, title="Create Custom Embed"):
+    embed_title = discord.ui.TextInput(
+        label="Embed Title",
+        placeholder="Enter embed title...",
+        required=False
+    )
+    embed_description = discord.ui.TextInput(
+        label="Embed Description",
+        placeholder="Enter description (Markdown supported)...",
+        style=discord.TextStyle.paragraph,
+        required=True
+    )
+    embed_color = discord.ui.TextInput(
+        label="Color (Hex e.g. #5865F2 or green/red)",
+        placeholder="#5865F2",
+        required=False
+    )
+    embed_image = discord.ui.TextInput(
+        label="Image / Banner URL",
+        placeholder="https://example.com/banner.png",
+        required=False
+    )
+    embed_footer = discord.ui.TextInput(
+        label="Footer Text",
+        placeholder="Footer text...",
+        required=False
+    )
+
+    def __init__(self, target_channel: discord.TextChannel = None):
+        super().__init__()
+        self.target_channel = target_channel
+
+    async def on_submit(self, interaction: discord.Interaction):
+        # Resolve color
+        color_val = 0x5865F2
+        raw_color = self.embed_color.value.strip().lower()
+        color_map = {
+            "green": 0x57F287, "red": 0xED4245, "yellow": 0xFEE75C,
+            "blue": 0x3498DB, "gold": 0xF1C40F, "purple": 0x9B59B6
+        }
+        if raw_color in color_map:
+            color_val = color_map[raw_color]
+        elif raw_color.startswith("#"):
+            try:
+                color_val = int(raw_color.replace("#", ""), 16)
+            except Exception:
+                pass
+
+        embed = discord.Embed(
+            title=self.embed_title.value or None,
+            description=self.embed_description.value,
+            color=color_val,
+            timestamp=discord.utils.utcnow()
+        )
+        if self.embed_image.value.strip().startswith("http"):
+            embed.set_image(url=self.embed_image.value.strip())
+        if self.embed_footer.value.strip():
+            embed.set_footer(text=self.embed_footer.value.strip())
+        else:
+            embed.set_footer(text=f"Sent via Zyath Embed Creator • {interaction.guild.name}")
+
+        channel = self.target_channel or interaction.channel
+        await channel.send(embed=embed)
+        await interaction.response.send_message(
+            embed=success_embed("Embed Sent", f"Your custom embed was posted to {channel.mention}!"),
+            ephemeral=True
+        )
+
+class CreateTicketModal(discord.ui.Modal):
+    subject = discord.ui.TextInput(
+        label="Subject / What do you need?",
+        placeholder="e.g. Buying Nitro, Middleman Trade, Question",
+        required=True
+    )
+    details = discord.ui.TextInput(
+        label="Details & Budget",
+        placeholder="Provide all details, payment method, or item description...",
+        style=discord.TextStyle.paragraph,
+        required=False
+    )
+
+    def __init__(self, category_name: str):
+        super().__init__(title=f"Open {category_name} Ticket")
+        self.category_name = category_name
+
+    async def on_submit(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        user = interaction.user
+        category_name = self.category_name
+
+        settings = await db.get_guild_settings(guild.id)
+        parent_cat_id = settings.get("ticket_category_id")
+        parent_cat = guild.get_channel(parent_cat_id) if parent_cat_id else None
+
+        staff_role_id = settings.get("ticket_staff_role_id")
+        staff_role = guild.get_role(staff_role_id) if staff_role_id else None
+
+        clean_user_name = user.name.lower().replace(" ", "-")
+        channel_name = f"ticket-{category_name.lower()[:4]}-{clean_user_name}"
+
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            user: discord.PermissionOverwrite(view_channel=True, send_messages=True, attach_files=True, embed_links=True, read_message_history=True),
+            guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True, manage_permissions=True)
+        }
+
+        if staff_role:
+            overwrites[staff_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, attach_files=True, embed_links=True, read_message_history=True)
+
+        try:
+            ticket_channel = await guild.create_text_channel(
+                name=channel_name,
+                category=parent_cat,
+                overwrites=overwrites,
+                topic=f"Ticket for {user.name} | Category: {category_name} | Subject: {self.subject.value}"
+            )
+        except Exception as e:
+            return await interaction.response.send_message(embed=error_embed("Failed to Create Ticket", str(e)), ephemeral=True)
+
+        await db.create_ticket_record(guild.id, ticket_channel.id, user.id, category_name)
+        await interaction.response.send_message(embed=success_embed("Ticket Created", f"Your ticket has been created at {ticket_channel.mention}!"), ephemeral=True)
+
+        mention_str = user.mention
+        if staff_role:
+            mention_str += f" | {staff_role.mention}"
+
+        welcome_ticket_embed = standard_embed(
+            title=f"🎫 {category_name} Ticket",
+            description=(
+                f"Welcome {user.mention}! Support staff has been notified.\n\n"
+                f"**📌 Subject:** `{self.subject.value}`\n"
+                f"**📝 Details:**\n```{self.details.value or 'No additional details provided.'}```\n"
+                f"Use the buttons below to manage this ticket."
+            ),
+            thumbnail=user.display_avatar.url
+        )
+
+        await ticket_channel.send(content=mention_str, embed=welcome_ticket_embed, view=TicketControlsView())
+
 class AddUserModal(discord.ui.Modal, title="Add Member to Ticket"):
     user_id = discord.ui.TextInput(
         label="User ID or Mention",
@@ -49,7 +188,7 @@ class TicketControlsView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="Close Ticket", style=discord.ButtonStyle.danger, emoji="🔒", custom_id="ticket_close_btn")
+    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🔒", custom_id="ticket_close_btn")
     async def close_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         record = await db.get_ticket_record(interaction.channel_id)
         if not record:
@@ -58,14 +197,13 @@ class TicketControlsView(discord.ui.View):
         await interaction.response.defer()
         await db.close_ticket_record(interaction.channel_id)
 
-        # Remove send permissions for the ticket creator
         creator = interaction.guild.get_member(record['user_id'])
         if creator:
             await interaction.channel.set_permissions(creator, view_channel=True, send_messages=False)
 
         close_embed = warning_embed(
             "Ticket Closed",
-            f"Ticket was closed by {interaction.user.mention}.\nUse the buttons below to re-open, save transcript, or delete."
+            f"Ticket was closed by {interaction.user.mention}.\nUse the buttons below to re-open, save transcript, leave a vouch, or delete."
         )
         await interaction.channel.send(embed=close_embed, view=TicketClosedControlsView())
 
@@ -130,11 +268,17 @@ class TicketClosedControlsView(discord.ui.View):
         file = await generate_html_transcript(interaction.channel)
         await interaction.followup.send(content="📄 **Transcript generated:**", file=file)
 
+    @discord.ui.button(label="⭐ Leave Vouch", style=discord.ButtonStyle.primary, emoji="⭐", custom_id="ticket_closed_vouch_btn")
+    async def leave_vouch(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message(
+            embed=info_embed("Leave a Vouch", "To submit your review, use:\n`$vouch @seller [1-5 stars] [Your review]`"),
+            ephemeral=True
+        )
+
     @discord.ui.button(label="Delete", style=discord.ButtonStyle.danger, emoji="🗑️", custom_id="ticket_delete_btn")
     async def delete_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(embed=error_embed("Deleting Ticket", "Ticket will be deleted in 5 seconds..."))
         
-        # Archive transcript to log channel if set
         settings = await db.get_guild_settings(interaction.guild_id)
         logs_id = settings.get("ticket_logs_channel_id")
         if logs_id:
@@ -156,37 +300,17 @@ class TicketClosedControlsView(discord.ui.View):
         await db.delete_ticket_record(interaction.channel_id)
         await interaction.channel.delete(reason=f"Ticket closed by {interaction.user}")
 
-# --- Ticket Panel Selection ---
+# --- Ticket Panel Views ---
 class TicketCategorySelect(discord.ui.Select):
     def __init__(self):
         options = [
-            discord.SelectOption(
-                label="General Support",
-                description="Need help, inquiries, or server support",
-                emoji="🛠️",
-                value="General Support"
-            ),
-            discord.SelectOption(
-                label="Buy / Order",
-                description="Purchase products, services, or custom orders",
-                emoji="🛒",
-                value="Buy / Order"
-            ),
-            discord.SelectOption(
-                label="Middleman Service",
-                description="Request a safe Middleman (MM) for trade",
-                emoji="🤝",
-                value="Middleman"
-            ),
-            discord.SelectOption(
-                label="Report / Appeal",
-                description="Report a user, bug, or submit an appeal",
-                emoji="⚠️",
-                value="Report"
-            ),
+            discord.SelectOption(label="General Support", description="Need help, questions, or server support", emoji="🛠️", value="General Support"),
+            discord.SelectOption(label="Buy / Order", description="Purchase products, services, or custom orders", emoji="🛒", value="Buy / Order"),
+            discord.SelectOption(label="Middleman Service", description="Request a safe Middleman (MM) for trade", emoji="🤝", value="Middleman"),
+            discord.SelectOption(label="Report / Appeal", description="Report a user, scam, or submit an appeal", emoji="⚠️", value="Report"),
         ]
         super().__init__(
-            placeholder="🎟️ Select ticket category to open a ticket...",
+            placeholder="🎟️ Select ticket category to open ticket form...",
             min_values=1,
             max_values=1,
             custom_id="ticket_category_select",
@@ -195,80 +319,74 @@ class TicketCategorySelect(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         category_name = self.values[0]
-        guild = interaction.guild
-        user = interaction.user
-
-        settings = await db.get_guild_settings(guild.id)
-        parent_cat_id = settings.get("ticket_category_id")
-        parent_cat = guild.get_channel(parent_cat_id) if parent_cat_id else None
-
-        staff_role_id = settings.get("ticket_staff_role_id")
-        staff_role = guild.get_role(staff_role_id) if staff_role_id else None
-
-        # Build permission overwrites
-        clean_user_name = user.name.lower().replace(" ", "-")
-        channel_name = f"ticket-{category_name.lower()[:4]}-{clean_user_name}"
-
-        overwrites = {
-            guild.default_role: discord.PermissionOverwrite(view_channel=False),
-            user: discord.PermissionOverwrite(view_channel=True, send_messages=True, attach_files=True, embed_links=True, read_message_history=True),
-            guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True, manage_permissions=True)
-        }
-
-        if staff_role:
-            overwrites[staff_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, attach_files=True, embed_links=True, read_message_history=True)
-
-        try:
-            ticket_channel = await guild.create_text_channel(
-                name=channel_name,
-                category=parent_cat,
-                overwrites=overwrites,
-                topic=f"Ticket for {user.name} | Category: {category_name} | ID: {user.id}"
-            )
-        except Exception as e:
-            return await interaction.response.send_message(embed=error_embed("Failed to Create Ticket", str(e)), ephemeral=True)
-
-        await db.create_ticket_record(guild.id, ticket_channel.id, user.id, category_name)
-
-        # Notify interaction author
-        await interaction.response.send_message(embed=success_embed("Ticket Created", f"Your ticket has been created at {ticket_channel.mention}!"), ephemeral=True)
-
-        # Initial message in ticket channel
-        mention_str = user.mention
-        if staff_role:
-            mention_str += f" | {staff_role.mention}"
-
-        welcome_ticket_embed = standard_embed(
-            title=f"🎫 {category_name} Ticket",
-            description=(
-                f"Welcome {user.mention}! Support will be with you shortly.\n\n"
-                f"**Category:** `{category_name}`\n"
-                f"**Created By:** {user.mention} (`{user.id}`)\n\n"
-                f"Please explain your inquiry in detail so our team can assist you faster.\n"
-                f"Use the buttons below to manage this ticket."
-            ),
-            thumbnail=user.display_avatar.url
-        )
-
-        await ticket_channel.send(content=mention_str, embed=welcome_ticket_embed, view=TicketControlsView())
+        # Open Modal so user can enter subject and details
+        await interaction.response.send_modal(CreateTicketModal(category_name))
 
 class TicketPanelView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(TicketCategorySelect())
 
+    @discord.ui.button(label="🛒 Order", style=discord.ButtonStyle.success, emoji="🛒", custom_id="btn_panel_order")
+    async def btn_order(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(CreateTicketModal("Buy / Order"))
+
+    @discord.ui.button(label="🤝 Middleman", style=discord.ButtonStyle.primary, emoji="🤝", custom_id="btn_panel_mm")
+    async def btn_mm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(CreateTicketModal("Middleman"))
+
+    @discord.ui.button(label="🛠️ Support", style=discord.ButtonStyle.secondary, emoji="🛠️", custom_id="btn_panel_support")
+    async def btn_support(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(CreateTicketModal("General Support"))
+
 # --- Cog Class ---
 class Tickets(commands.Cog):
-    """Advanced customizable ticket system with drop-down menus, transcripts, claim & roles."""
+    """Advanced customizable ticket system with drop-down menus, modals, transcripts, claim & roles."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        # Register persistent views so buttons work after restart
         self.bot.add_view(TicketPanelView())
         self.bot.add_view(TicketControlsView())
         self.bot.add_view(TicketClosedControlsView())
 
-    @commands.command(name="ticketpanel", aliases=["ticketsetup"], help="Send the ticket creation panel.")
+    @commands.command(name="createembed", aliases=["embed"], help="Open the interactive custom embed creator modal.")
+    @commands.has_permissions(manage_messages=True)
+    async def create_embed_cmd(self, ctx: commands.Context, channel: discord.TextChannel = None):
+        target = channel or ctx.channel
+        
+        view = discord.ui.View()
+        async def btn_cb(interaction: discord.Interaction):
+            await interaction.response.send_modal(CreateEmbedModal(target))
+
+        btn = discord.ui.Button(label="Open Embed Builder", style=discord.ButtonStyle.primary, emoji="🎨")
+        btn.callback = btn_cb
+        view.add_item(btn)
+
+        await ctx.send(
+            embed=info_embed(
+                "Embed Builder",
+                f"Click below to build and send a custom embed to {target.mention}."
+            ),
+            view=view
+        )
+
+    @commands.command(name="invoice", help="Send a payment invoice inside a ticket. E.g. $invoice $25.00 LTC [Product]")
+    @commands.has_permissions(manage_messages=True)
+    async def send_invoice(self, ctx: commands.Context, amount: str, method: str, *, product: str = "Order Item"):
+        embed = standard_embed(
+            title=f"🧾 Official Invoice • {product}",
+            description=(
+                f"**Amount Due:** `{amount}`\n"
+                f"**Payment Method:** `{method}`\n\n"
+                f"Please send the exact amount to complete your order.\n"
+                f"Once paid, send a screenshot of the transaction here."
+            ),
+            color=0x2ECC71
+        )
+        embed.set_footer(text=f"Issued by {ctx.author.display_name} • Zyath Store")
+        await ctx.send(embed=embed)
+
+    @commands.command(name="ticketpanel", aliases=["ticketsetup"], help="Send the ticket creation panel with categories and buttons.")
     @commands.has_permissions(administrator=True)
     async def ticket_panel(self, ctx: commands.Context, channel: discord.TextChannel = None):
         channel = channel or ctx.channel
@@ -276,15 +394,16 @@ class Tickets(commands.Cog):
             title="🎫 Support & Service Tickets",
             description=(
                 "Need assistance, want to buy something, or require a Middleman?\n"
-                "Select the appropriate category from the menu below to open your private ticket!\n\n"
+                "Use the menu or buttons below to open your private ticket!\n\n"
                 "🔹 **General Support**: Inquiries, questions, help\n"
                 "🔹 **Buy / Order**: Order products or services\n"
                 "🔹 **Middleman Service**: Secure trade mediation\n"
                 "🔹 **Report / Appeal**: User reports and disputes\n\n"
-                "⚡ *A staff member will be assigned immediately.*"
+                "⚡ *A staff member will assist you immediately.*"
             )
         )
-        embed.set_thumbnail(url=ctx.guild.icon.url if ctx.guild.icon else None)
+        if ctx.guild.icon:
+            embed.set_thumbnail(url=ctx.guild.icon.url)
         await channel.send(embed=embed, view=TicketPanelView())
         if channel.id != ctx.channel.id:
             await ctx.send(embed=success_embed("Panel Created", f"Ticket panel deployed in {channel.mention}."))
@@ -346,7 +465,16 @@ class Tickets(commands.Cog):
             except Exception as e:
                 await ctx.send(embed=error_embed("Error", str(e)))
         else:
-            await ctx.send(embed=info_embed("Ticket Commands", "• `$ticket close` - Close current ticket\n• `$ticket transcript` - Generate transcript\n• `$ticket add @user` - Add user to ticket\n• `$ticket remove @user` - Remove user from ticket\n• `$ticketpanel` - Deploy ticket panel"))
+            await ctx.send(embed=info_embed(
+                "Ticket Commands",
+                "• `$ticket close` - Close current ticket\n"
+                "• `$ticket transcript` - Generate HTML transcript\n"
+                "• `$ticket add @user` - Add user to ticket\n"
+                "• `$ticket remove @user` - Remove user from ticket\n"
+                "• `$createembed` - Build custom embed\n"
+                "• `$invoice <amount> <method>` - Post payment invoice\n"
+                "• `$ticketpanel` - Deploy ticket panel"
+            ))
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Tickets(bot))

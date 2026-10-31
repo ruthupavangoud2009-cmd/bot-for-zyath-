@@ -69,13 +69,62 @@ A state-of-the-art, feature-complete Discord bot built with **discord.py 2.x**, 
 
 ---
 
+## ⚡ Hosting & Run Commands
+
+If you are deploying on a cloud host (Render, Railway, Heroku, SquareCloud, Pterodactyl, or a VPS):
+
+| Command Type | Exact Command |
+|---|---|
+| **Build Command** | `pip install -r requirements.txt` |
+| **Start Command** | `python main.py` |
+
+---
+
+## ⚡ No-Prefix System (`$np`)
+
+Users authorized with **No-Prefix** can run every single bot command **without typing the `$` prefix** (e.g. just typing `help`, `shop`, `vouch @user 5 ...`, `mercy ...`, etc.).
+
+- **Both Bot Owners** (`1521774957065928734` & `1505515188991033409`) have **Permanent No-Prefix** enabled!
+- **Owner-Only Commands**:
+  - `$np add @user` — Authorize a user to run all commands without prefix.
+  - `$np remove @user` — Revoke a user's no-prefix access.
+  - `$np list` — View all authorized no-prefix users.
+
+---
+
+## ⚡ Top 20 Slash (`/`) Commands
+All commands work with prefix `$` (or no-prefix for authorized users), plus the **top 20 most important commands** are registered globally as Discord slash commands:
+
+1. `/help` — Interactive module-based command center
+2. `/shop` — Browse official store catalog
+3. `/payment` — View accepted payment methods & wallet addresses
+4. `/tos` — View shop warranty & refund policy
+5. `/ticket` — Close active ticket or generate HTML transcript
+6. `/ticketpanel` — Deploy support & order ticket panel
+7. `/vouch` — Submit a reputation review with 1-5 stars
+8. `/vouches` — View reputation rating for a user
+9. `/mercy` — Log official Middleman transaction
+10. `/trade` — Look up trade receipt by ID
+11. `/createembed` — Open interactive modal to create custom embeds
+12. `/gtn` — Start Guess The Number game in channel
+13. `/say` — Speak as bot in channel
+14. `/avatar` — View user avatar
+15. `/userinfo` — View user Discord information
+16. `/serverinfo` — View server statistics
+17. `/purge` — Bulk delete messages
+18. `/mute` — Timeout member
+19. `/kick` — Kick member
+20. `/ban` — Ban member
+
+---
+
 ## 🚀 Quick Setup Guide
 
 ### 1. Requirements
 - Python 3.10+ installed
 - Git
 
-### 2. Install Dependencies
+### 2. Install Dependencies (Build Command)
 ```bash
 pip install -r requirements.txt
 ```
@@ -90,9 +139,9 @@ pip install -r requirements.txt
    DISCORD_TOKEN=your_bot_token_here
    PREFIX=$
    ```
-3. Open `config.json` to customize:
-   - Default embed colors
-   - `allowed_spam_users`: Add your Discord user ID and trusted friends' IDs to allow the `$spam` command!
+3. Open `config.json` to verify:
+   - `owner_ids`: `["1521774957065928734", "1505515188991033409"]`
+   - `allowed_spam_users`
 
 ### 4. Enable Discord Privileged Intents
 In the [Discord Developer Portal](https://discord.com/developers/applications):
@@ -103,7 +152,7 @@ In the [Discord Developer Portal](https://discord.com/developers/applications):
   - ✅ **Message Content Intent**
 - Save changes.
 
-### 5. Run the Bot
+### 5. Run the Bot (Start Command)
 ```bash
 python main.py
 ```
