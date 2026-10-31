@@ -104,17 +104,20 @@ class MercyModal(discord.ui.Modal, title="Mercy • Log MM Transaction"):
         seller_id = seller_obj.id if isinstance(seller_obj, discord.Member) else 0
 
         embed = standard_embed(
-            title=f"🤝 Live Trade Receipt • #{trade_id}",
-            description="A new official Middleman transaction is currently active.",
+            title=f"🤝 Official Middleman Escrow • #{trade_id}",
+            description=(
+                f"> **Live Escrow Transaction Receipt**\n"
+                f"> Certified deal logged in **{guild.name}** • <t:{int(discord.utils.utcnow().timestamp())}:R>\n\n"
+                f"🛡️ **Assigned MM:** {interaction.user.mention} (`{interaction.user.id}`)\n"
+                f"👤 **Buyer:** {buyer_mention}\n"
+                f"📦 **Seller:** {seller_mention}\n"
+                f"💰 **Escrow Value:** `{self.amount.value}`\n"
+                f"📊 **Status:** 🟡 **In Progress / Escrow Active**\n\n"
+                f"📝 **Deal Terms & Deliverables:**\n```{self.details.value}```"
+            ),
             color=0xFEE75C
         )
-        embed.add_field(name="🛡️ Middleman (MM)", value=interaction.user.mention, inline=True)
-        embed.add_field(name="👤 Buyer", value=buyer_mention, inline=True)
-        embed.add_field(name="📦 Seller", value=seller_mention, inline=True)
-        embed.add_field(name="💰 Value / Amount", value=f"`{self.amount.value}`", inline=True)
-        embed.add_field(name="📊 Status", value="🟡 **In Progress**", inline=True)
-        embed.add_field(name="📝 Deal Details", value=f"```{self.details.value}```", inline=False)
-        embed.set_footer(text=f"Trade ID: {trade_id} • Zyath Live MM Logger")
+        embed.set_footer(text=f"Trade #{trade_id} • Zyath Certified Escrow Ledger")
 
         view = TradeStatusView(trade_id=trade_id, mm_id=interaction.user.id)
         msg = await self.target_channel.send(content=f"{buyer_mention} {seller_mention}", embed=embed, view=view)

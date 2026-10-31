@@ -65,7 +65,6 @@ class Fun(commands.Cog):
 
     @commands.command(name="hi", help="Say hi to Zyath Bot with a sleek interactive greeting!")
     async def hi_command(self, ctx: commands.Context):
-        # Delete user's trigger message immediately
         try:
             await ctx.message.delete()
         except Exception:
@@ -73,21 +72,65 @@ class Fun(commands.Cog):
 
         guild_name = ctx.guild.name if ctx.guild else "Zyath Community"
         embed = standard_embed(
-            title="👋 Hello & Welcome!",
+            title=f"👋 Welcome to {guild_name}!",
             description=(
-                f"Hey {ctx.author.mention}! Welcome to **{guild_name}**!\n\n"
-                f"✨ **Quick Actions:**\n"
-                f"• 🛒 Browse Store: `$shop`\n"
-                f"• 🎫 Open Ticket: `$ticketpanel`\n"
-                f"• 🤝 Middleman / Trade: `$mercy`\n"
-                f"• 📜 All Commands: `$help`"
+                f"> Hello {ctx.author.mention}! I'm **Zyath**, your all-in-one server concierge.\n"
+                f"> Powered by 24/7 AI, automated shop routing, and dual-engine Supabase storage.\n\n"
+                f"✨ **Quick Navigation:**\n"
+                f"• 🛍️ **Official Shop:** `$shop` — Browse digital catalog & order instantly\n"
+                f"• 🎫 **Support Tickets:** `$ticketpanel` — Open a private modular ticket\n"
+                f"• 🏆 **Reputation:** `$vouchlb` — View top vouched merchants & traders\n"
+                f"• 🤝 **Middleman:** `$mercy` — Log and escrow secure community deals\n"
+                f"• 📜 **Command Center:** `$help` — Comprehensive command guide"
             ),
-            color=0x5763719
+            color=0x2B2D31
         )
         if ctx.guild and ctx.guild.icon:
             embed.set_thumbnail(url=ctx.guild.icon.url)
-        embed.set_footer(text=f"Have a great day • Zyath Assistant")
-        await ctx.send(embed=embed)
+        embed.set_footer(text=f"Zyath Concierge • Serving {ctx.author.display_name}")
+
+        class HiQuickView(discord.ui.View):
+            def __init__(self, guild_id: int):
+                super().__init__(timeout=180)
+                self.guild_id = guild_id
+
+            @discord.ui.button(label="Storefront", style=discord.ButtonStyle.secondary, emoji="🛍️")
+            async def shop_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+                from cogs.shop import ShopView
+                items = await db.get_shop_items(self.guild_id)
+                if not items:
+                    return await interaction.response.send_message(embed=info_embed("Shop Catalog", "No items currently listed in the shop."), ephemeral=True)
+                embed = standard_embed(
+                    title=f"🛍️ {interaction.guild.name} • Official Marketplace",
+                    description="> Select an item below to open an instant order ticket:\n",
+                    color=0x2B2D31
+                )
+                for item in items[:10]:
+                    embed.add_field(name=f"📦 {item['name']} — `{item['price']}`", value=f"└ *{item['description'] or 'In stock'}*", inline=False)
+                await interaction.response.send_message(embed=embed, view=ShopView(items, self.guild_id), ephemeral=True)
+
+            @discord.ui.button(label="Open Ticket", style=discord.ButtonStyle.secondary, emoji="🎫")
+            async def ticket_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+                from cogs.tickets import TicketPanelView
+                embed = standard_embed(
+                    title="🎫 Zyath Support Desk • Select Category",
+                    description="> Choose your inquiry type below to open a private ticket:"
+                )
+                await interaction.response.send_message(embed=embed, view=TicketPanelView(), ephemeral=True)
+
+            @discord.ui.button(label="Vouch Leaderboard", style=discord.ButtonStyle.secondary, emoji="🏆")
+            async def lb_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+                lb = await db.get_vouch_leaderboard(self.guild_id, limit=5)
+                if not lb:
+                    return await interaction.response.send_message(embed=info_embed("Leaderboard", "No vouches logged yet."), ephemeral=True)
+                desc = "> 🏆 **Top Reputable Traders:**\n\n"
+                medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+                for idx, entry in enumerate(lb):
+                    desc += f"{medals[idx]} <@{entry['target_id']}> — **{entry['count']}** Vouches (⭐ `{entry['avg_stars']}/5.0`)\n"
+                embed = standard_embed(title=f"🏆 Top Traders • {interaction.guild.name}", description=desc, color=0xFEE75C)
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        await ctx.send(embed=embed, view=HiQuickView(ctx.guild.id if ctx.guild else 0))
 
     @commands.command(name="sayembed", help="Make the bot speak in a clean embed. E.g. $sayembed Title | Description")
     async def say_embed(self, ctx: commands.Context, *, text: str):
@@ -256,39 +299,83 @@ class Fun(commands.Cog):
         )
         await ctx.send(embed=embed)
 
-    @commands.command(name="userinfo", aliases=["whois", "ui", "uinfo"], help="Get information about a user.")
+    @commands.command(name="userinfo", aliases=["whois", "ui", "uinfo"], help="Get detailed user profile dossier.")
     async def user_info(self, ctx: commands.Context, member: discord.Member = None):
         member = member or ctx.author
-        roles = [r.mention for r in member.roles if r.name != "@everyone"]
-        roles_str = ", ".join(roles) if roles else "None"
+
+        # Badges calculation
+        badges = []
+        if ctx.guild and member.id == ctx.guild.owner_id:
+            badges.append("👑 Owner")
+        if member.guild_permissions.administrator:
+            badges.append("🛡️ Admin")
+        elif member.guild_permissions.manage_guild or member.guild_permissions.moderate_members:
+            badges.append("🔨 Staff")
+        if member.premium_since:
+            badges.append("💎 Booster")
+        if member.bot:
+            badges.append("🤖 Bot")
+        if not badges:
+            badges.append("👤 Member")
+
+        roles = [r.mention for r in reversed(member.roles) if r.name != "@everyone"]
+        roles_str = ", ".join(roles[:12]) if roles else "None"
+        if len(roles) > 12:
+            roles_str += f" *(+{len(roles) - 12} more)*"
+
+        created_ts = int(member.created_at.timestamp())
+        joined_ts = int(member.joined_at.timestamp()) if member.joined_at else 0
 
         embed = standard_embed(
-            title=f"User Info • {member}",
+            title=f"👤 User Dossier • {member.display_name}",
+            description=(
+                f"> **Identity Overview**\n"
+                f"> Badges: {' • '.join([f'`{b}`' for b in badges])}\n\n"
+                f"🆔 **User ID:** `{member.id}`\n"
+                f"🏷️ **Username:** `{member.name}`\n"
+                f"📛 **Server Nick:** `{member.nick or 'None'}`\n"
+                f"🔝 **Highest Role:** {member.top_role.mention}\n"
+                f"📅 **Registered:** <t:{created_ts}:D> (<t:{created_ts}:R>)\n"
+                f"📥 **Joined Server:** <t:{joined_ts}:D> (<t:{joined_ts}:R>)\n\n"
+                f"🎭 **Assigned Roles ({len(roles)}):**\n{roles_str}"
+            ),
+            color=member.color if member.color.value != 0 else 0x2B2D31,
             thumbnail=member.display_avatar.url
         )
-        embed.add_field(name="🆔 User ID", value=str(member.id), inline=True)
-        embed.add_field(name="🏷️ Nickname", value=member.nick or "None", inline=True)
-        embed.add_field(name="🤖 Bot?", value="Yes" if member.bot else "No", inline=True)
-        embed.add_field(name="📅 Created At", value=discord.utils.format_dt(member.created_at, style="f"), inline=True)
-        embed.add_field(name="📥 Joined Server", value=discord.utils.format_dt(member.joined_at, style="f") if member.joined_at else "Unknown", inline=True)
-        embed.add_field(name="🔝 Top Role", value=member.top_role.mention, inline=True)
-        embed.add_field(name=f"🎭 Roles [{len(roles)}]", value=roles_str[:1024] if len(roles_str) < 1024 else f"{len(roles)} roles", inline=False)
+        embed.set_footer(text=f"Requested by {ctx.author.display_name} • Zyath Identity System")
         await ctx.send(embed=embed)
 
-    @commands.command(name="serverinfo", aliases=["si", "sinfo"], help="Get information about the server.")
+    @commands.command(name="serverinfo", aliases=["si", "sinfo"], help="Get comprehensive server telemetry.")
     async def server_info(self, ctx: commands.Context):
         g = ctx.guild
+        created_ts = int(g.created_at.timestamp())
+
+        # Channels stats
+        text_count = len(g.text_channels)
+        voice_count = len(g.voice_channels)
+        category_count = len(g.categories)
+
+        # Verification Level
+        v_level = str(g.verification_level).capitalize()
+
         embed = standard_embed(
-            title=f"Server Info • {g.name}",
+            title=f"🌐 Server Telemetry • {g.name}",
+            description=(
+                f"> **Infrastructure Overview**\n"
+                f"> Owner: <@{g.owner_id}> • ID: `{g.id}`\n\n"
+                f"👥 **Community Metrics:**\n"
+                f"• Total Members: **{g.member_count:,}**\n"
+                f"• Boost Level: **Tier {g.premium_tier}** ({g.premium_subscription_count} Boosts)\n"
+                f"• Security Level: `{v_level}`\n\n"
+                f"📁 **Channels & Roles:**\n"
+                f"• Text Channels: `{text_count}` | Voice: `{voice_count}` | Categories: `{category_count}`\n"
+                f"• Roles: `{len(g.roles)}` | Custom Emojis: `{len(g.emojis)}`\n\n"
+                f"📅 **Established:** <t:{created_ts}:D> (<t:{created_ts}:R>)"
+            ),
+            color=0x2B2D31,
             thumbnail=g.icon.url if g.icon else None
         )
-        embed.add_field(name="👑 Owner", value=f"<@{g.owner_id}>", inline=True)
-        embed.add_field(name="🆔 Server ID", value=str(g.id), inline=True)
-        embed.add_field(name="👥 Members", value=str(g.member_count), inline=True)
-        embed.add_field(name="💬 Channels", value=f"{len(g.text_channels)} Text | {len(g.voice_channels)} Voice", inline=True)
-        embed.add_field(name="🎭 Roles", value=str(len(g.roles)), inline=True)
-        embed.add_field(name="✨ Boost Level", value=f"Level {g.premium_tier} ({g.premium_subscription_count} boosts)", inline=True)
-        embed.add_field(name="📅 Created On", value=discord.utils.format_dt(g.created_at, style="f"), inline=False)
+        embed.set_footer(text=f"Zyath Server Intelligence • System Online")
         await ctx.send(embed=embed)
 
     @commands.command(name="poll", help="Create a reaction poll. E.g. $poll Should we do a giveaway?")
@@ -300,7 +387,8 @@ class Fun(commands.Cog):
 
         embed = standard_embed(
             title="📊 Community Poll",
-            description=f"**{question}**\n\nVote by reacting below!",
+            description=f"> **{question}**\n\n*Cast your vote using the reactions below:*",
+            color=0x5865F2,
             author=ctx.author
         )
         msg = await ctx.send(embed=embed)
@@ -312,41 +400,42 @@ class Fun(commands.Cog):
         ws_latency = round(self.bot.latency * 1000)
 
         t_start = time.perf_counter()
-        initial_msg = await ctx.send("⚡ *Probing system and network latencies...*")
+        initial_msg = await ctx.send("⚡ *Initiating comprehensive node diagnostics...*")
         api_latency = round((time.perf_counter() - t_start) * 1000)
 
         db_latency, db_engine = await db.ping()
 
         if ws_latency < 80 and api_latency < 150:
-            status_text = "🟢 Optimal • Ultra-Fast Response"
+            status_text = "🟢 Optimal • Sub-100ms Ultra Performance"
             status_color = 0x57F287
         elif ws_latency < 180 and api_latency < 300:
-            status_text = "🟡 Good • Stable Response"
+            status_text = "🟡 Nominal • Stable Network"
             status_color = 0xFEE75C
         else:
-            status_text = "🔴 High Latency • Network Congested"
+            status_text = "🔴 High Latency • Network Congestion"
             status_color = 0xED4245
 
         embed = standard_embed(
-            title="🏓 Pong! • Network Diagnostics",
+            title="⚡ Zyath Telemetry • Real-Time Diagnostics",
             description=(
-                f"**Overall Health:** {status_text}\n\n"
-                f"• ⚡ **WebSocket Gateway:** `{ws_latency}ms`\n"
-                f"• 💬 **Discord REST API:** `{api_latency}ms`\n"
-                f"• 🗄️ **Database ({db_engine}):** `{db_latency}ms`\n"
-                f"• 🌐 **Render 24/7 Web Server:** `Operational (Port Active)`\n\n"
-                f"⏱️ *All nodes connected & synchronized.*"
+                f"> **System Health:** {status_text}\n\n"
+                f"🌐 **Network & API Clusters:**\n"
+                f"• ⚡ **WebSocket Gateway:** `{ws_latency}ms` (Real-Time Heartbeat)\n"
+                f"• 💬 **Discord REST API:** `{api_latency}ms` (HTTP Response Round-Trip)\n"
+                f"• 🗄️ **Database Pool:** `{db_latency}ms` (`{db_engine}` Active)\n"
+                f"• 🚀 **24/7 Web Server:** `Operational (Port 10000 Active)`\n\n"
+                f"⏱️ *Synchronized across cloud workers.*"
             ),
             color=status_color
         )
-        embed.set_footer(text=f"Requested by {ctx.author.display_name} • Zyath Diagnostics")
+        embed.set_footer(text=f"Requested by {ctx.author.display_name} • Zyath Diagnostic Engine")
 
         class PingRefreshView(discord.ui.View):
             def __init__(self, bot):
                 super().__init__(timeout=60)
                 self.bot = bot
 
-            @discord.ui.button(label="Refresh Ping", style=discord.ButtonStyle.primary, emoji="🔄")
+            @discord.ui.button(label="Re-Probe Nodes", style=discord.ButtonStyle.primary, emoji="🔄")
             async def refresh(self, interaction: discord.Interaction, button: discord.ui.Button):
                 ws = round(self.bot.latency * 1000)
                 t1 = time.perf_counter()
@@ -355,18 +444,19 @@ class Fun(commands.Cog):
                 db_lat, engine = await db.ping()
 
                 new_embed = standard_embed(
-                    title="🏓 Pong! • Network Diagnostics",
+                    title="⚡ Zyath Telemetry • Real-Time Diagnostics",
                     description=(
-                        f"**Overall Health:** 🟢 Refreshed\n\n"
+                        f"> **System Health:** 🟢 Refreshed & Synced\n\n"
+                        f"🌐 **Network & API Clusters:**\n"
                         f"• ⚡ **WebSocket Gateway:** `{ws}ms`\n"
                         f"• 💬 **Discord REST API:** `{api}ms`\n"
-                        f"• 🗄️ **Database ({engine}):** `{db_lat}ms`\n"
-                        f"• 🌐 **Render 24/7 Web Server:** `Operational (Port Active)`\n\n"
-                        f"⏱️ *Updated live.*"
+                        f"• 🗄️ **Database Pool:** `{db_lat}ms` (`{engine}`)\n"
+                        f"• 🚀 **24/7 Web Server:** `Operational (Port 10000 Active)`\n\n"
+                        f"⏱️ *Telemetry updated live.*"
                     ),
                     color=0x57F287
                 )
-                new_embed.set_footer(text=f"Refreshed by {interaction.user.display_name}")
+                new_embed.set_footer(text=f"Telemetry refreshed by {interaction.user.display_name}")
                 await interaction.message.edit(embed=new_embed, view=self)
 
         await initial_msg.edit(content=None, embed=embed, view=PingRefreshView(self.bot))

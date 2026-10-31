@@ -52,13 +52,41 @@ class Moderation(commands.Cog):
         if member.top_role >= ctx.guild.me.top_role:
             return await ctx.send(embed=error_embed("Bot Hierarchy Error", "I cannot kick someone with higher or equal roles to mine."))
 
+        now_ts = int(discord.utils.utcnow().timestamp())
         try:
-            await member.send(embed=error_embed("You Were Kicked", f"You have been kicked from **{ctx.guild.name}**.\n**Reason:** {reason}"))
+            dm_embed = standard_embed(
+                title=f"👢 Disciplinary Notice • {ctx.guild.name}",
+                description=(
+                    f"Hello {member.mention},\n"
+                    f"You have been kicked from **{ctx.guild.name}**.\n\n"
+                    f"📋 **Infraction Details:**\n"
+                    f"• **Reason:** `{reason}`\n"
+                    f"• **Moderator:** {ctx.author.display_name}\n"
+                    f"• **Action Date:** <t:{now_ts}:F>\n\n"
+                    f"*You may rejoin with an active invite if your conduct aligns with server guidelines.*"
+                ),
+                color=0xED4245
+            )
+            if ctx.guild.icon:
+                dm_embed.set_thumbnail(url=ctx.guild.icon.url)
+            await member.send(embed=dm_embed)
         except Exception:
             pass
 
         await member.kick(reason=f"{ctx.author} ({ctx.author.id}): {reason}")
-        embed = success_embed("Member Kicked", f"👢 **{member}** was kicked by {ctx.author.mention}.\n**Reason:** {reason}")
+        embed = standard_embed(
+            title="👢 Moderation Action • Member Kicked",
+            description=(
+                f"> Disciplinary action executed in **{ctx.guild.name}**\n\n"
+                f"👤 **Member:** {member.mention} (`{member.id}`)\n"
+                f"🛡️ **Moderator:** {ctx.author.mention} (`{ctx.author.id}`)\n"
+                f"📝 **Reason:** `{reason}`\n"
+                f"⏱️ **Timestamp:** <t:{now_ts}:R>"
+            ),
+            color=0xED4245,
+            thumbnail=member.display_avatar.url
+        )
+        embed.set_footer(text=f"Zyath Security Engine • Case Audit Logged")
         await ctx.send(embed=embed)
         await self.log_action(ctx.guild, embed)
 
@@ -71,13 +99,41 @@ class Moderation(commands.Cog):
         if member.top_role >= ctx.guild.me.top_role:
             return await ctx.send(embed=error_embed("Bot Hierarchy Error", "I cannot ban someone with higher or equal roles to mine."))
 
+        now_ts = int(discord.utils.utcnow().timestamp())
         try:
-            await member.send(embed=error_embed("You Were Banned", f"You have been banned from **{ctx.guild.name}**.\n**Reason:** {reason}"))
+            dm_embed = standard_embed(
+                title=f"🔨 Disciplinary Notice • {ctx.guild.name}",
+                description=(
+                    f"Hello {member.mention},\n"
+                    f"You have been banned permanently from **{ctx.guild.name}**.\n\n"
+                    f"📋 **Sanction Details:**\n"
+                    f"• **Reason:** `{reason}`\n"
+                    f"• **Enforced By:** {ctx.author.display_name}\n"
+                    f"• **Action Date:** <t:{now_ts}:F>\n\n"
+                    f"*Bans are logged into the server security registry.*"
+                ),
+                color=0xED4245
+            )
+            if ctx.guild.icon:
+                dm_embed.set_thumbnail(url=ctx.guild.icon.url)
+            await member.send(embed=dm_embed)
         except Exception:
             pass
 
         await member.ban(reason=f"{ctx.author} ({ctx.author.id}): {reason}", delete_message_days=1)
-        embed = success_embed("Member Banned", f"🔨 **{member}** was banned by {ctx.author.mention}.\n**Reason:** {reason}")
+        embed = standard_embed(
+            title="🔨 Moderation Action • Member Banned",
+            description=(
+                f"> Permanent ban executed in **{ctx.guild.name}**\n\n"
+                f"👤 **Member:** {member.mention} (`{member.id}`)\n"
+                f"🛡️ **Moderator:** {ctx.author.mention} (`{ctx.author.id}`)\n"
+                f"📝 **Reason:** `{reason}`\n"
+                f"⏱️ **Timestamp:** <t:{now_ts}:R>"
+            ),
+            color=0xED4245,
+            thumbnail=member.display_avatar.url
+        )
+        embed.set_footer(text=f"Zyath Security Engine • Case Audit Logged")
         await ctx.send(embed=embed)
         await self.log_action(ctx.guild, embed)
 
@@ -88,7 +144,18 @@ class Moderation(commands.Cog):
         try:
             user = await self.bot.fetch_user(user_id)
             await ctx.guild.unban(user, reason=f"{ctx.author}: {reason}")
-            embed = success_embed("Member Unbanned", f"🔓 **{user}** ({user.id}) was unbanned.\n**Reason:** {reason}")
+            now_ts = int(discord.utils.utcnow().timestamp())
+            embed = standard_embed(
+                title="🔓 Moderation Action • User Unbanned",
+                description=(
+                    f"> Sanction rescinded in **{ctx.guild.name}**\n\n"
+                    f"👤 **User:** `{user}` (`{user.id}`)\n"
+                    f"🛡️ **Moderator:** {ctx.author.mention}\n"
+                    f"📝 **Reason:** `{reason}`\n"
+                    f"⏱️ **Timestamp:** <t:{now_ts}:R>"
+                ),
+                color=0x57F287
+            )
             await ctx.send(embed=embed)
             await self.log_action(ctx.guild, embed)
         except discord.NotFound:
@@ -111,7 +178,21 @@ class Moderation(commands.Cog):
 
         until = discord.utils.utcnow() + delta
         await member.timeout(until, reason=f"{ctx.author}: {reason}")
-        embed = success_embed("Member Timed Out", f"🔇 **{member.mention}** was muted for **{duration}**.\n**Reason:** {reason}")
+        now_ts = int(discord.utils.utcnow().timestamp())
+        embed = standard_embed(
+            title="🔇 Moderation Action • Member Timed Out",
+            description=(
+                f"> Communication timeout enforced in **{ctx.guild.name}**\n\n"
+                f"👤 **Member:** {member.mention} (`{member.id}`)\n"
+                f"🛡️ **Moderator:** {ctx.author.mention} (`{ctx.author.id}`)\n"
+                f"⏳ **Duration:** `{duration}` (Expires <t:{int(until.timestamp())}:R>)\n"
+                f"📝 **Reason:** `{reason}`\n"
+                f"⏱️ **Timestamp:** <t:{now_ts}:R>"
+            ),
+            color=0xFEE75C,
+            thumbnail=member.display_avatar.url
+        )
+        embed.set_footer(text=f"Zyath Security Engine • Case Audit Logged")
         await ctx.send(embed=embed)
         await self.log_action(ctx.guild, embed)
 
@@ -120,7 +201,7 @@ class Moderation(commands.Cog):
     @commands.bot_has_permissions(moderate_members=True)
     async def unmute(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"):
         await member.timeout(None, reason=f"{ctx.author}: {reason}")
-        embed = success_embed("Member Unmuted", f"🔊 **{member.mention}** timeout was removed by {ctx.author.mention}.")
+        embed = success_embed("Member Unmuted", f"🔊 **{member.mention}** timeout was revoked by {ctx.author.mention}.\n**Reason:** `{reason}`")
         await ctx.send(embed=embed)
         await self.log_action(ctx.guild, embed)
 
@@ -173,19 +254,25 @@ class Moderation(commands.Cog):
     async def warnings(self, ctx: commands.Context, member: discord.Member):
         warns = await db.get_warnings(ctx.guild.id, member.id)
         if not warns:
-            return await ctx.send(embed=info_embed("Clean Record", f"**{member.display_name}** has 0 warnings."))
+            return await ctx.send(embed=info_embed("Disciplinary Record", f"**{member.display_name}** has a completely clean record (0 active warnings)."))
 
-        desc = f"Total Warnings: **{len(warns)}**\n\n"
+        desc = (
+            f"> **Disciplinary Dossier**\n"
+            f"> Subject: {member.mention} (`{member.id}`) • Total Violations: `{len(warns)}`\n\n"
+            f"📋 **Infraction History:**\n"
+        )
         for idx, w in enumerate(warns[:10], start=1):
             mod = ctx.guild.get_member(w['mod_id'])
             mod_name = mod.display_name if mod else f"ID: {w['mod_id']}"
-            desc += f"**#{w['id']}** | Mod: {mod_name} | {w['timestamp']}\n`{w['reason']}`\n\n"
+            desc += f"• **Case `#{w['id']}`** — Issued by **{mod_name}**\n  └ *Reason:* `{w['reason']}`\n  └ *Logged:* `{w['timestamp']}`\n\n"
 
         embed = standard_embed(
-            title=f"Warnings for {member.display_name}",
+            title=f"⚠️ Disciplinary Dossier • {member.display_name}",
             description=desc,
-            author=member
+            color=0xED4245,
+            thumbnail=member.display_avatar.url
         )
+        embed.set_footer(text=f"Zyath Compliance & Moderation Records")
         await ctx.send(embed=embed)
 
     @commands.command(name="clearwarnings", aliases=["clearwarns"], help="Clear all warnings for a member.")

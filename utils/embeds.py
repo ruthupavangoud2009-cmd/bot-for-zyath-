@@ -13,11 +13,12 @@ def get_config():
 
 config = get_config()
 
-COLOR_PRIMARY = config.get("embed_color", 0x5865F2)
-COLOR_SUCCESS = config.get("success_color", 0x57F287)
-COLOR_ERROR = config.get("error_color", 0xED4245)
-COLOR_WARNING = config.get("warning_color", 0xFEE75C)
-COLOR_INFO = config.get("info_color", 0x3498DB)
+# Primary Colors
+COLOR_PRIMARY = config.get("embed_color", 0x2B2D31)   # Discord Dark Theme
+COLOR_SUCCESS = config.get("success_color", 0x57F287)   # Emerald Green
+COLOR_ERROR = config.get("error_color", 0xED4245)       # Crimson Red
+COLOR_WARNING = config.get("warning_color", 0xFEE75C)   # Radiant Gold
+COLOR_INFO = config.get("info_color", 0x5865F2)         # Modern Blurple
 
 def standard_embed(
     title: str = None,
@@ -40,7 +41,7 @@ def standard_embed(
     if footer_text:
         embed.set_footer(text=footer_text, icon_url=footer_icon)
     else:
-        embed.set_footer(text="Zyath Bot • All-in-One Discord System")
+        embed.set_footer(text="Zyath System • All-in-One Discord Suite")
     if thumbnail:
         embed.set_thumbnail(url=thumbnail)
     if image:
@@ -50,27 +51,27 @@ def standard_embed(
 def success_embed(title: str = "Success", description: str = "") -> discord.Embed:
     return standard_embed(
         title=f"✅ {title}",
-        description=description,
+        description=f"> {description}" if description and not description.startswith(">") and "\n" not in description else description,
         color=COLOR_SUCCESS
     )
 
 def error_embed(title: str = "Error", description: str = "") -> discord.Embed:
     return standard_embed(
         title=f"❌ {title}",
-        description=description,
+        description=f"> {description}" if description and not description.startswith(">") and "\n" not in description else description,
         color=COLOR_ERROR
     )
 
 def warning_embed(title: str = "Warning", description: str = "") -> discord.Embed:
     return standard_embed(
         title=f"⚠️ {title}",
-        description=description,
+        description=f"> {description}" if description and not description.startswith(">") and "\n" not in description else description,
         color=COLOR_WARNING
     )
 
 def info_embed(title: str = "Information", description: str = "") -> discord.Embed:
     return standard_embed(
         title=f"ℹ️ {title}",
-        description=description,
+        description=f"> {description}" if description and not description.startswith(">") and "\n" not in description else description,
         color=COLOR_INFO
     )

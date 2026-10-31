@@ -81,11 +81,127 @@ class ShopItemSelect(discord.ui.Select):
         )
         await order_channel.send(content=pings, embed=order_embed, view=TicketControlsView())
 
-class ShopView(discord.ui.View):
-    def __init__(self, items: list):
+class ShopQuickButtons(discord.ui.View):
+    def __init__(self, guild_id: int):
         super().__init__(timeout=180)
+        self.guild_id = guild_id
+
+    @discord.ui.button(label="Payment Methods", style=discord.ButtonStyle.secondary, emoji="💳")
+    async def pay_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        methods = await db.get_payment_methods(self.guild_id)
+        if not methods:
+            return await interaction.response.send_message(embed=info_embed("Payment Gateways", "No payment methods configured yet."), ephemeral=True)
+        embed = standard_embed(
+            title=f"💳 {interaction.guild.name} • Official Payment Gateways",
+            description="> Send funds only to the verified addresses below. Confirm tx ID in ticket.\n",
+            color=0x2ECC71
+        )
+        for m in methods:
+            note_str = f"\n└ ℹ️ *{m['note']}*" if m.get('note') else ""
+            embed.add_field(
+                name=f"🔹 {m['method_name']}",
+                value=f"```{m['address']}```{note_str}",
+                inline=False
+            )
+        embed.set_footer(text="Zyath Financial Security • Verified Addresses")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="Terms of Service", style=discord.ButtonStyle.secondary, emoji="📜")
+    async def tos_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        tos_text = await db.get_shop_tos(self.guild_id)
+        if not tos_text:
+            tos_text = (
+                "**1. General Policy:** All sales are final once delivered unless specified otherwise.\n"
+                "**2. Warranty & Proof:** Replacements are provided within warranty period with valid unedited proof.\n"
+                "**3. Payment Verification:** Only send payments to official addresses in `$payment`.\n"
+                "**4. Scams & Chargebacks:** Chargebacks result in a permanent ban & universal blacklist."
+            )
+        embed = standard_embed(
+            title=f"📜 {interaction.guild.name} • Storefront Terms & Warranty",
+            description=tos_text,
+            color=0xFEE75C
+        )
+        embed.set_footer(text="By ordering from our store, you agree to these terms.")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="Reputation & Vouches", style=discord.ButtonStyle.secondary, emoji="⭐")
+    async def vouch_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        stats = await db.get_server_vouch_stats(self.guild_id)
+        total = stats.get("total", 0)
+        avg = stats.get("avg_rating", 0.0)
+        embed = standard_embed(
+            title=f"⭐ {interaction.guild.name} • Verified Community Reputation",
+            description=(
+                f"> **Total Vouches Recorded:** `{total}`\n"
+                f"> **Customer Satisfaction Rating:** `⭐ {avg}/5.0`\n"
+                f"> **Reputation Index:** ▰▰▰▰▰▰▰▰▰▰ `100% Verified`\n\n"
+                f"Type `$vouchlb` to see our top trusted sellers or `$vouches @user` to inspect any member."
+            ),
+            color=0xFEE75C
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+class ShopView(discord.ui.View):
+    def __init__(self, items: list, guild_id: int):
+        super().__init__(timeout=180)
+        self.guild_id = guild_id
         if items:
             self.add_item(ShopItemSelect(items))
+
+    @discord.ui.button(label="Payment Methods", style=discord.ButtonStyle.secondary, emoji="💳", row=1)
+    async def pay_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        methods = await db.get_payment_methods(self.guild_id)
+        if not methods:
+            return await interaction.response.send_message(embed=info_embed("Payment Gateways", "No payment methods configured yet."), ephemeral=True)
+        embed = standard_embed(
+            title=f"💳 {interaction.guild.name} • Official Payment Gateways",
+            description="> Send funds only to the verified addresses below. Confirm transaction in ticket.\n",
+            color=0x2ECC71
+        )
+        for m in methods:
+            note_str = f"\n└ ℹ️ *{m['note']}*" if m.get('note') else ""
+            embed.add_field(
+                name=f"🔹 {m['method_name']}",
+                value=f"```{m['address']}```{note_str}",
+                inline=False
+            )
+        embed.set_footer(text="Zyath Financial Security • Verified Addresses")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="Terms of Service", style=discord.ButtonStyle.secondary, emoji="📜", row=1)
+    async def tos_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        tos_text = await db.get_shop_tos(self.guild_id)
+        if not tos_text:
+            tos_text = (
+                "**1. General Policy:** All sales are final once delivered unless specified otherwise.\n"
+                "**2. Warranty & Proof:** Replacements are provided within warranty period with valid unedited proof.\n"
+                "**3. Payment Verification:** Only send payments to official addresses in `$payment`.\n"
+                "**4. Scams & Chargebacks:** Chargebacks result in a permanent ban & universal blacklist."
+            )
+        embed = standard_embed(
+            title=f"📜 {interaction.guild.name} • Storefront Terms & Warranty",
+            description=tos_text,
+            color=0xFEE75C
+        )
+        embed.set_footer(text="By ordering from our store, you automatically agree to these terms.")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="Reputation & Vouches", style=discord.ButtonStyle.secondary, emoji="⭐", row=1)
+    async def vouch_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        stats = await db.get_server_vouch_stats(self.guild_id)
+        total = stats.get("total", 0)
+        avg = stats.get("avg_rating", 0.0)
+        embed = standard_embed(
+            title=f"⭐ {interaction.guild.name} • Verified Community Reputation",
+            description=(
+                f"> **Total Vouches Recorded:** `{total}`\n"
+                f"> **Customer Satisfaction Rating:** `⭐ {avg}/5.0`\n"
+                f"> **Reputation Index:** ▰▰▰▰▰▰▰▰▰▰ `100% Verified`\n\n"
+                f"Type `$vouchlb` to see our top trusted sellers or `$vouches @user` to inspect any member."
+            ),
+            color=0xFEE75C
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 class RestockBuyView(discord.ui.View):
     def __init__(self, item_name: str = "Restocked Item"):
@@ -119,26 +235,27 @@ class Shop(commands.Cog):
             ))
 
         embed = standard_embed(
-            title=f"🛒 {ctx.guild.name} Official Shop",
+            title=f"🛍️ {ctx.guild.name} • Official Marketplace",
             description=(
-                "Browse our catalog of items and services below.\n"
-                "To buy, select an item from the dropdown to automatically open an Order Ticket!\n"
+                f"> Welcome to our verified digital storefront. Select any item from the dropdown\n"
+                f"> below to automatically open an instant private purchase ticket.\n\n"
+                f"⚡ **Catalog Highlights ({len(items)} Items):**\n"
             ),
-            color=0x5763719
+            color=0x2B2D31
         )
         if ctx.guild.icon:
             embed.set_thumbnail(url=ctx.guild.icon.url)
 
         for item in items[:15]:
-            desc = item['description'] or "No description provided."
+            desc = item['description'] or "Instant delivery upon ticket confirmation."
             embed.add_field(
-                name=f"📦 #{item['id']} • {item['name']} — {item['price']}",
-                value=f"**Category:** `{item['category']}`\n*{desc}*",
+                name=f"📦 #{item['id']} • {item['name']} — `{item['price']}`",
+                value=f"└ 🏷️ **Category:** `{item['category']}` • 🟢 **In Stock**\n└ *{desc}*",
                 inline=False
             )
 
-        embed.set_footer(text="Select an item below to order • Zyath Shop")
-        view = ShopView(items)
+        embed.set_footer(text="Select an item below to order • 24/7 AI & Staff Assistance Active")
+        view = ShopView(items, ctx.guild.id)
         await ctx.send(embed=embed, view=view)
 
     @commands.command(name="shopadd", help="Add an item to the shop. E.g. $shopadd Nitro 1 Month | $5.00 | Subscriptions | Instant delivery")

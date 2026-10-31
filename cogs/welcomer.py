@@ -81,15 +81,15 @@ class Welcomer(commands.Cog):
 
                 embed = standard_embed(
                     title=f"⚡ WELCOME TO {member.guild.name.upper()}!",
-                    description=description,
-                    color=0x5865F2,
+                    description=f"> {description}\n\n",
+                    color=0x2B2D31,
                     thumbnail=member.display_avatar.url
                 )
-                embed.add_field(name="👤 Member", value=f"{member.mention} (`{member.id}`)", inline=True)
+                embed.add_field(name="👤 Member", value=f"{member.mention}\n`{member.id}`", inline=True)
                 embed.add_field(name="👥 Member Count", value=f"**#{member.guild.member_count:,}**", inline=True)
                 created_ago = discord.utils.format_dt(member.created_at, style="R")
                 embed.add_field(name="📅 Account Age", value=created_ago, inline=True)
-                embed.set_footer(text=f"Welcome {member.name} • Have an amazing time!")
+                embed.set_footer(text=f"Welcome {member.name} • Enjoy your stay!")
 
                 try:
                     # Generate dynamic high-definition image card
@@ -108,8 +108,11 @@ class Welcomer(commands.Cog):
             channel = member.guild.get_channel(channel_id)
             if channel and channel.permissions_for(member.guild.me).send_messages:
                 embed = standard_embed(
-                    title="👋 Member Left",
-                    description=f"**{member}** has left the server.\nWe now have **{member.guild.member_count}** members.",
+                    title="👋 Member Departure",
+                    description=(
+                        f"> **{member.name}** (`{member.id}`) has left **{member.guild.name}**.\n\n"
+                        f"👥 **Updated Member Count:** `{member.guild.member_count:,}` members"
+                    ),
                     color=0xED4245,
                     thumbnail=member.display_avatar.url
                 )

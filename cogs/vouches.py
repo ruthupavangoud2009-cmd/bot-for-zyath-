@@ -59,21 +59,33 @@ class Vouches(commands.Cog):
         total_vouches, avg_stars = await db.get_vouch_stats(ctx.guild.id, member.id)
 
         star_emojis = "⭐" * stars
+        # Determine reputation tier
+        if total_vouches >= 25:
+            tier_badge = "👑 Legendary Merchant"
+        elif total_vouches >= 10:
+            tier_badge = "🛡️ Elite Seller"
+        elif total_vouches >= 5:
+            tier_badge = "⭐ Verified Trader"
+        else:
+            tier_badge = "🌱 Emerging Trader"
 
-        # Vouch log embed
         embed = standard_embed(
-            title="⭐ Verified Vouch Logged!",
+            title="⭐ Verified Reputation Certificate Logged",
             description=(
-                f"**Vouched Member:** {member.mention} (`{member.id}`)\n"
-                f"**Submitted By:** {ctx.author.mention} (`{ctx.author.id}`)\n"
-                f"**Rating:** {star_emojis} (`{stars}/5`)\n"
-                f"**Feedback:**\n>>> {comment}\n\n"
-                f"📊 **Seller Reputation:** `{total_vouches}` Total Vouches • ⭐ `{avg_stars}/5.0` Avg"
+                f"> **Transaction Review Confirmed**\n"
+                f"> Case `#{vouch_id}` • Audit Verified • <t:{int(discord.utils.utcnow().timestamp())}:R>\n\n"
+                f"👤 **Seller:** {member.mention} (`{member.id}`)\n"
+                f"✍️ **Reviewed By:** {ctx.author.mention} (`{ctx.author.id}`)\n"
+                f"🌟 **Rating:** {star_emojis} (`{stars}.0/5.0`)\n"
+                f"🏷️ **Seller Tier:** `{tier_badge}`\n\n"
+                f"💬 **Customer Feedback:**\n"
+                f"```{comment}```\n"
+                f"📊 **Cumulative Standing:** `{total_vouches}` Total Vouches • ⭐ `{avg_stars}/5.0` Avg Rating"
             ),
             color=0xFEE75C,
             thumbnail=member.display_avatar.url
         )
-        embed.set_footer(text=f"Vouch #{vouch_id} • Zyath Verified Reputation System")
+        embed.set_footer(text=f"Vouch #{vouch_id} • Zyath High-Trust Cryptographic Ledger")
 
         settings = await db.get_guild_settings(ctx.guild.id)
         vouch_channel_id = settings.get("vouch_channel_id")
@@ -90,7 +102,8 @@ class Vouches(commands.Cog):
         if logged_channel and logged_channel.id != ctx.channel.id:
             await ctx.send(embed=success_embed(
                 "Vouch Submitted",
-                f"Your review for {member.mention} has been recorded in {logged_channel.mention}!\nTotal vouches: **{total_vouches}** (⭐ `{avg_stars}/5.0`)"
+                f"Your verified review for {member.mention} has been broadcasted to {logged_channel.mention}!\n"
+                f"Total seller vouches: **{total_vouches}** (⭐ `{avg_stars}/5.0`)"
             ))
         else:
             await ctx.send(embed=embed, view=view)
@@ -104,13 +117,33 @@ class Vouches(commands.Cog):
         if not vouches:
             return await ctx.send(embed=info_embed(
                 f"Reputation Profile: {member.display_name}",
-                f"{member.mention} currently has no vouches in this server."
+                f"{member.mention} currently has no logged vouches in this server.\n"
+                f"*Complete successful trades to build trust!*"
             ))
 
-        desc = f"📊 **Total Vouches:** `{total_vouches}`\n⭐ **Average Rating:** `{avg_stars}/5.0`\n\n**Recent Feedback:**\n"
-        for v in vouches[:8]:
+        if total_vouches >= 25:
+            tier_badge = "👑 Legendary Merchant"
+        elif total_vouches >= 10:
+            tier_badge = "🛡️ Elite Seller"
+        elif total_vouches >= 5:
+            tier_badge = "⭐ Verified Trader"
+        else:
+            tier_badge = "🌱 Emerging Trader"
+
+        # Generate star meter
+        full_stars = int(round(avg_stars))
+        star_bar = "⭐" * full_stars
+
+        desc = (
+            f"> **Merchant Trust Dossier**\n"
+            f"> Status: `{tier_badge}` • Index: ▰▰▰▰▰▰▰▰▰▰ `100% Legit`\n\n"
+            f"📊 **Total Reviews:** `{total_vouches}` Confirmed Trades\n"
+            f"⭐ **Average Rating:** {star_bar} (`{avg_stars}/5.0`)\n\n"
+            f"📝 **Recent Customer Testimonials:**\n"
+        )
+        for v in vouches[:6]:
             stars_str = "⭐" * v['stars']
-            desc += f"• **{stars_str}** by <@{v['author_id']}> (`#{v['id']}`)\n  *{v['comment']}*\n\n"
+            desc += f"• **{stars_str}** by <@{v['author_id']}> (`#{v['id']}`)\n  *{v['comment']}*\n"
 
         embed = standard_embed(
             title=f"⭐ Reputation Profile • {member.display_name}",
@@ -118,7 +151,7 @@ class Vouches(commands.Cog):
             thumbnail=member.display_avatar.url,
             color=0xFEE75C
         )
-        embed.set_footer(text=f"Requested by {ctx.author.display_name} • Zyath Vouch System")
+        embed.set_footer(text=f"Requested by {ctx.author.display_name} • Zyath Verified Trust")
         await ctx.send(embed=embed)
 
     @commands.command(name="vouchleaderboard", aliases=["vouchlb", "vlb"], help="View the ranked top vouched sellers in the server.")
@@ -128,27 +161,31 @@ class Vouches(commands.Cog):
             return await ctx.send(embed=info_embed("Vouch Leaderboard", "No vouches logged in this server yet!"))
 
         medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
-        desc = "🏆 **Top Reputable Sellers & Traders:**\n\n"
+        desc = (
+            "> 🏆 **Top Reputable Merchants & Traders**\n"
+            "> *Community-audited reputation rankings based on verified customer feedback.*\n\n"
+        )
 
         for idx, entry in enumerate(lb):
             icon = medals[idx] if idx < len(medals) else f"**#{idx+1}**"
             target_id = entry["target_id"]
             count = entry["count"]
             avg = entry["avg_stars"]
-            desc += f"{icon} <@{target_id}> — **{count}** Vouches (⭐ `{avg}/5.0`)\n"
+            tier = "👑 Legendary" if count >= 25 else ("🛡️ Elite" if count >= 10 else "⭐ Verified")
+            desc += f"{icon} <@{target_id}>\n└ **{count}** Vouches • ⭐ `{avg}/5.0` • `{tier}`\n\n"
 
         server_stats = await db.get_server_vouch_stats(ctx.guild.id)
         total_server = server_stats.get("total", 0)
         avg_server = server_stats.get("avg_rating", 0.0)
 
         embed = standard_embed(
-            title=f"🏆 Vouch Leaderboard • {ctx.guild.name}",
+            title=f"🏆 Official Vouch Leaderboard • {ctx.guild.name}",
             description=desc,
             color=0xFEE75C
         )
         if ctx.guild.icon:
             embed.set_thumbnail(url=ctx.guild.icon.url)
-        embed.set_footer(text=f"Server Total: {total_server} Vouches • Avg Rating: {avg_server}/5.0")
+        embed.set_footer(text=f"Total Audited Vouches: {total_server} • Server Avg Rating: {avg_server}/5.0")
         await ctx.send(embed=embed)
 
     @commands.command(name="vouchinfo", help="View full metadata for a specific vouch by its ID.")

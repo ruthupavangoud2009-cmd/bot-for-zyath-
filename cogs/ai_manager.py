@@ -179,8 +179,11 @@ class AIManager(commands.Cog):
 
         embed = standard_embed(
             title=f"📊 {ctx.guild.name} • Live Stock Inventory",
-            description="Real-time stock counts verified by Zyath AI Manager.\n",
-            color=0x5865F2
+            description=(
+                f"> Real-time stock audit monitored by **Zyath AI Assistant**\n"
+                f"> Verified products: `{len(items)}` | Direct 1-click orders available in `$shop`\n"
+            ),
+            color=0x2B2D31
         )
 
         # If items exist in shop_items
@@ -191,8 +194,8 @@ class AIManager(commands.Cog):
             status_emoji = "🟢" if cnt > 0 else "🟡"
             status_text = f"**{cnt} units available**" if cnt > 0 else "*Available on order (Instant Delivery)*"
             embed.add_field(
-                name=f"{status_emoji} {it['name']} — {it['price']}",
-                value=f"**Stock:** {status_text}\n**Category:** `{it['category']}`",
+                name=f"{status_emoji} {it['name']} — `{it['price']}`",
+                value=f"└ 📦 **Stock:** {status_text}\n└ 🏷️ **Category:** `{it['category']}`",
                 inline=False
             )
 
@@ -201,7 +204,7 @@ class AIManager(commands.Cog):
             if name.lower() not in shown_names:
                 embed.add_field(
                     name=f"📦 {name}",
-                    value=f"**Stock:** 🟢 **{cnt} units available**\n*Use `$shopadd` to add to storefront*",
+                    value=f"└ **Stock:** 🟢 **{cnt} units available**\n└ *Use `$shopadd` to link to storefront*",
                     inline=False
                 )
 
@@ -230,11 +233,11 @@ class AIManager(commands.Cog):
                 seller_offline=False
             )
             embed = standard_embed(
-                title="🤖 Zyath AI Assistant",
-                description=f"**Q:** *\"{question}\"*\n\n{reply}",
-                color=0x5865F2
+                title="🤖 Zyath Intelligence • Automated Response",
+                description=f"> **Query:** *\"{question}\"*\n\n{reply}",
+                color=0x2B2D31
             )
-            embed.set_footer(text=f"Requested by {ctx.author.display_name}")
+            embed.set_footer(text=f"Requested by {ctx.author.display_name} • Zyath Neural Engine")
             await ctx.send(embed=embed)
 
     @commands.command(name="aimanager", aliases=["aitoggle"], help="Toggle the automated AI assistant in tickets on or off. E.g. $aimanager on")
@@ -266,9 +269,12 @@ class AIManager(commands.Cog):
         prompt_str = f"```{cfg['custom_prompt']}```" if cfg.get("custom_prompt") else "*Default Professional Shop Persona*"
 
         embed = standard_embed(
-            title="⚙️ Zyath AI Store Manager Settings",
-            description="Configuration for the 24/7 automated store and ticket AI assistant.",
-            color=0x5865F2
+            title="⚙️ Zyath AI Store Manager Telemetry",
+            description=(
+                f"> **Autonomous Storefront Assistant**\n"
+                f"> 24/7 intelligent ticket responder & inventory scanner.\n"
+            ),
+            color=0x2B2D31
         )
         embed.add_field(name="🤖 Assistant Status", value=enabled_str, inline=True)
         embed.add_field(name="🎯 Trigger Mode", value=mode_str, inline=True)
