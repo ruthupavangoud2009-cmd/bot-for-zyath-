@@ -4,6 +4,7 @@ import asyncio
 from utils.embeds import standard_embed, success_embed, error_embed, info_embed, warning_embed
 from utils.database import db
 from utils.transcript import generate_html_transcript, generate_text_transcript
+from utils.ticket_creator import create_safe_ticket_channel
 
 # --- Modals ---
 class CreateEmbedModal(discord.ui.Modal, title="Create Custom Embed"):
@@ -106,20 +107,13 @@ class CreateTicketModal(discord.ui.Modal):
         clean_user_name = user.name.lower().replace(" ", "-")
         channel_name = f"ticket-{category_name.lower()[:4]}-{clean_user_name}"
 
-        overwrites = {
-            guild.default_role: discord.PermissionOverwrite(view_channel=False),
-            user: discord.PermissionOverwrite(view_channel=True, send_messages=True, attach_files=True, embed_links=True, read_message_history=True),
-            guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True, manage_permissions=True)
-        }
-
-        if staff_role:
-            overwrites[staff_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, attach_files=True, embed_links=True, read_message_history=True)
-
         try:
-            ticket_channel = await guild.create_text_channel(
-                name=channel_name,
+            ticket_channel = await create_safe_ticket_channel(
+                guild=guild,
+                user=user,
+                channel_name=channel_name,
                 category=parent_cat,
-                overwrites=overwrites,
+                staff_role=staff_role,
                 topic=f"Ticket for {user.name} | Category: {category_name} | Subject: {self.subject.value}"
             )
         except Exception as e:

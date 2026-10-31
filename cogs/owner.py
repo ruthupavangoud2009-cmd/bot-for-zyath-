@@ -177,5 +177,50 @@ class Owner(commands.Cog):
         except Exception as e:
             await msg.edit(content=f"❌ Error syncing commands: {str(e)}")
 
+    @commands.command(name="checkperms", aliases=["perms", "testperms"], help="Check and diagnose bot permissions in this server.")
+    async def check_perms(self, ctx: commands.Context):
+        me = ctx.guild.me
+        perms = me.guild_permissions
+        settings = await db.get_guild_settings(ctx.guild.id)
+        
+        def mark(val: bool):
+            return "✅ Enabled" if val else "❌ Missing (Required!)"
+
+        admin = perms.administrator
+        manage_channels = perms.manage_channels
+        manage_roles = perms.manage_roles
+        manage_messages = perms.manage_messages
+        send_messages = perms.send_messages
+        embed_links = perms.embed_links
+        cat_id = settings.get("ticket_category_id")
+        role_id = settings.get("ticket_staff_role_id")
+        logs_id = settings.get("ticket_logs_channel_id")
+
+        cat_str = f"<#{cat_id}>" if cat_id else "⚠️ Not set (Creates at root)"
+        role_str = f"<@&{role_id}>" if role_id else "⚠️ Not set (Admins only)"
+        logs_str = f"<#{logs_id}>" if logs_id else "⚠️ Not set"
+
+        embed = standard_embed(
+            title=f"🛡️ Server Permissions Audit • {ctx.guild.name}",
+            description=(
+                f"**Bot Highest Role:** {me.top_role.mention}\n"
+                f"**Bot Position:** #{me.top_role.position} of {len(ctx.guild.roles)} roles\n\n"
+                f"**Critical Permissions:**\n"
+                f"• **Administrator:** {mark(admin)}\n"
+                f"• **Manage Channels:** {mark(manage_channels)}\n"
+                f"• **Manage Roles:** {mark(manage_roles)}\n"
+                f"• **Manage Messages:** {mark(manage_messages)}\n"
+                f"• **Embed Links:** {mark(embed_links)}\n"
+                f"• **Attach Files:** {mark(attach_files)}\n\n"
+                f"**Ticket System Configuration:**\n"
+                f"• Category: {cat_str}\n"
+                f"• Staff Role: {role_str}\n"
+                f"• Logs Channel: {logs_str}\n\n"
+                f"💡 *Tip: Grant the bot role **Administrator** in Server Settings to ensure 100% functionality without permission conflicts!*"
+            ),
+            color=0x57F287 if (admin or manage_channels) else 0xED4245
+        )
+        await ctx.send(embed=embed)
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(Owner(bot))

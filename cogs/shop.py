@@ -3,6 +3,7 @@ from discord.ext import commands
 from utils.embeds import standard_embed, success_embed, error_embed, info_embed
 from utils.database import db
 from cogs.tickets import TicketControlsView
+from utils.ticket_creator import create_safe_ticket_channel
 
 class ShopItemSelect(discord.ui.Select):
     def __init__(self, items: list):
@@ -42,19 +43,13 @@ class ShopItemSelect(discord.ui.Select):
         clean_user = user.name.lower().replace(" ", "-")
         channel_name = f"order-{clean_user}"
 
-        overwrites = {
-            guild.default_role: discord.PermissionOverwrite(view_channel=False),
-            user: discord.PermissionOverwrite(view_channel=True, send_messages=True, attach_files=True, embed_links=True),
-            guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True)
-        }
-        if staff_role:
-            overwrites[staff_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, attach_files=True, embed_links=True)
-
         try:
-            order_channel = await guild.create_text_channel(
-                name=channel_name,
+            order_channel = await create_safe_ticket_channel(
+                guild=guild,
+                user=user,
+                channel_name=channel_name,
                 category=parent_cat,
-                overwrites=overwrites,
+                staff_role=staff_role,
                 topic=f"Order Ticket for {user.name} | Product: {item['name']} ({item['price']})"
             )
         except Exception as e:
