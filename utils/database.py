@@ -123,6 +123,23 @@ CREATE TABLE IF NOT EXISTS ticket_categories (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(guild_id, name)
 );
+
+CREATE TABLE IF NOT EXISTS shop_stock (
+    id SERIAL PRIMARY KEY,
+    guild_id BIGINT NOT NULL,
+    item_name TEXT NOT NULL,
+    stock_data TEXT NOT NULL,
+    is_used BOOLEAN DEFAULT FALSE,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS ai_settings (
+    guild_id BIGINT PRIMARY KEY,
+    enabled BOOLEAN DEFAULT TRUE,
+    offline_only BOOLEAN DEFAULT TRUE,
+    custom_prompt TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 SQLITE_SCHEMA = """
@@ -225,6 +242,23 @@ CREATE TABLE IF NOT EXISTS ticket_categories (
     staff_role_id INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(guild_id, name)
+);
+
+CREATE TABLE IF NOT EXISTS shop_stock (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id INTEGER NOT NULL,
+    item_name TEXT NOT NULL,
+    stock_data TEXT NOT NULL,
+    is_used BOOLEAN DEFAULT 0,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS ai_settings (
+    guild_id INTEGER PRIMARY KEY,
+    enabled BOOLEAN DEFAULT 1,
+    offline_only BOOLEAN DEFAULT 1,
+    custom_prompt TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 """
 
@@ -961,12 +995,153 @@ class Database:
         if self.is_postgres and self.pool:
             async with self.pool.acquire() as conn:
                 rows = await conn.fetch("SELECT * FROM no_prefix_users ORDER BY timestamp DESC")
-                return [dict(r) for r in rows]
         else:
             async with aiosqlite.connect(self.sqlite_path) as db:
                 db.row_factory = aiosqlite.Row
                 cursor = await db.execute("SELECT * FROM no_prefix_users ORDER BY timestamp DESC")
                 rows = await cursor.fetchall()
                 return [dict(r) for r in rows]
+
+    # ==========================================
+    # SHOP STOCK & INVENTORY
+    # ==========================================
+    async def add_stock_batch(self, guild_id: int, item_name: str, stock_lines: List[str]) -> int:
+        clean_name = item_name.strip()
+        filtered = [line.strip() for line in stock_lines if line and line.strip()]
+        if not filtered:
+            return 0
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.executemany(
+                    "INSERT INTO shop_stock (guild_id, item_name, stock_data) VALUES ($1, $2, $3)",
+                    [(guild_id, clean_name, line) for line in filtered]
+                )
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.executemany(
+                    "INSERT INTO shop_stock (guild_id, item_name, stock_data) VALUES (?, ?, ?)",
+                    [(guild_id, clean_name, line) for line in filtered]
+                )
+                await db.commit()
+        return len(filtered)
+
+    async def get_stock_counts(self, guild_id: int) -> Dict[str, int]:
+        counts = {}
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("""
+                    SELECT item_name, COUNT(*) as count 
+                    FROM shop_stock 
+                    WHERE guild_id = $1 AND is_used = FALSE 
+                    GROUP BY item_name
+                """, guild_id)
+                for r in rows:
+                    counts[r["item_name"]] = r["count"]
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("""
+                    SELECT item_name, COUNT(*) as count 
+                    FROM shop_stock 
+                    WHERE guild_id = ? AND is_used = 0 
+                    GROUP BY item_name
+                """, (guild_id,))
+                rows = await cursor.fetchall()
+                for r in rows:
+                    counts[r[0]] = r[1]
+        return counts
+
+    async def get_item_stock_count(self, guild_id: int, item_name: str) -> int:
+        clean = item_name.strip()
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                val = await conn.fetchval("""
+                    SELECT COUNT(*) FROM shop_stock 
+                    WHERE guild_id = $1 AND LOWER(item_name) = LOWER($2) AND is_used = FALSE
+                """, guild_id, clean)
+                return val or 0
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("""
+                    SELECT COUNT(*) FROM shop_stock 
+                    WHERE guild_id = ? AND LOWER(item_name) = LOWER(?) AND is_used = 0
+                """, (guild_id, clean))
+                row = await cursor.fetchone()
+                return row[0] if row else 0
+
+    async def clear_stock(self, guild_id: int, item_name: str) -> int:
+        clean = item_name.strip()
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                res = await conn.execute("DELETE FROM shop_stock WHERE guild_id = $1 AND LOWER(item_name) = LOWER($2)", guild_id, clean)
+                parts = res.split()
+                return int(parts[1]) if len(parts) > 1 else 0
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("DELETE FROM shop_stock WHERE guild_id = ? AND LOWER(item_name) = LOWER(?)", (guild_id, clean))
+                await db.commit()
+                return cursor.rowcount
+
+    # ==========================================
+    # AI SETTINGS
+    # ==========================================
+    async def get_ai_settings(self, guild_id: int) -> Dict[str, Any]:
+        default = {
+            "guild_id": guild_id,
+            "enabled": True,
+            "offline_only": True,
+            "custom_prompt": ""
+        }
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT * FROM ai_settings WHERE guild_id = $1", guild_id)
+                if row:
+                    return dict(row)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("SELECT * FROM ai_settings WHERE guild_id = ?", (guild_id,))
+                row = await cursor.fetchone()
+                if row:
+                    res = dict(row)
+                    res["enabled"] = bool(res.get("enabled", 1))
+                    res["offline_only"] = bool(res.get("offline_only", 1))
+                    return res
+        return default
+
+    async def set_ai_settings(
+        self,
+        guild_id: int,
+        enabled: Optional[bool] = None,
+        offline_only: Optional[bool] = None,
+        custom_prompt: Optional[str] = None
+    ) -> bool:
+        current = await self.get_ai_settings(guild_id)
+        new_enabled = enabled if enabled is not None else current["enabled"]
+        new_offline = offline_only if offline_only is not None else current["offline_only"]
+        new_prompt = custom_prompt if custom_prompt is not None else current.get("custom_prompt", "")
+
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO ai_settings (guild_id, enabled, offline_only, custom_prompt)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT (guild_id) DO UPDATE SET
+                        enabled = EXCLUDED.enabled,
+                        offline_only = EXCLUDED.offline_only,
+                        custom_prompt = EXCLUDED.custom_prompt
+                """, guild_id, new_enabled, new_offline, new_prompt)
+                return True
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("""
+                    INSERT INTO ai_settings (guild_id, enabled, offline_only, custom_prompt)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT (guild_id) DO UPDATE SET
+                        enabled = excluded.enabled,
+                        offline_only = excluded.offline_only,
+                        custom_prompt = excluded.custom_prompt
+                """, (guild_id, 1 if new_enabled else 0, 1 if new_offline else 0, new_prompt))
+                await db.commit()
+                return True
 
 db = Database()

@@ -88,10 +88,12 @@ class CreateTicketModal(discord.ui.Modal):
         required=False
     )
 
-    def __init__(self, category_name: str, guild_id: int = None):
+    def __init__(self, category_name: str, guild_id: int = None, default_subject: str = None):
         super().__init__(title=f"Open {category_name[:35]} Ticket")
         self.category_name = category_name
         self.guild_id = guild_id
+        if default_subject:
+            self.subject.default = default_subject[:100]
 
     async def on_submit(self, interaction: discord.Interaction):
         guild = interaction.guild
@@ -429,6 +431,8 @@ class Tickets(commands.Cog):
             vals = interaction.data.get("values", [])
             if vals:
                 await interaction.response.send_modal(CreateTicketModal(vals[0], interaction.guild_id))
+        elif cid == "restock_open_ticket_btn":
+            await interaction.response.send_modal(CreateTicketModal("Buy / Order", interaction.guild_id, default_subject="Order: Restocked Item"))
 
     @commands.command(name="createembed", aliases=["embed"], help="Open the interactive custom embed creator modal.")
     @commands.has_permissions(manage_messages=True)

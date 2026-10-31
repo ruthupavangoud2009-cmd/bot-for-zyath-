@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from typing import Optional
 from utils.embeds import standard_embed, success_embed, error_embed, info_embed
 from utils.database import db
 from cogs.tickets import TicketControlsView
@@ -86,11 +87,22 @@ class ShopView(discord.ui.View):
         if items:
             self.add_item(ShopItemSelect(items))
 
+class RestockBuyView(discord.ui.View):
+    def __init__(self, item_name: str = "Restocked Item"):
+        super().__init__(timeout=None)
+        self.item_name = item_name
+
+    @discord.ui.button(label="🛒 Open Ticket to Buy", style=discord.ButtonStyle.success, emoji="🛒", custom_id="restock_open_ticket_btn")
+    async def buy_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        from cogs.tickets import CreateTicketModal
+        await interaction.response.send_modal(CreateTicketModal("Buy / Order", interaction.guild_id, default_subject=f"Order: {self.item_name}"))
+
 class Shop(commands.Cog):
     """Server storefront system with direct ticket ordering."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self.bot.add_view(RestockBuyView())
 
     @commands.command(name="shop", aliases=["store"], help="View server shop catalog. E.g. $shop or $store")
     async def view_shop(self, ctx: commands.Context, category: str = None):
@@ -255,6 +267,104 @@ class Shop(commands.Cog):
     async def set_tos(self, ctx: commands.Context, *, text: str):
         await db.set_shop_tos(ctx.guild.id, text)
         await ctx.send(embed=success_embed("TOS Updated", "Shop Terms of Service have been successfully updated!"))
+
+    @commands.command(name="restock", help="Broadcast an official shop restock alert with an instant 1-click buy button. E.g. $restock #announcements @everyone Nitro 1 Year | $15.00 | 50 in stock!")
+    @commands.has_permissions(administrator=True)
+    async def restock_announcement(self, ctx: commands.Context, *, raw_input: str = None):
+        """
+        Broadcasts a restock alert with optional @everyone/@here ping and instant order button.
+        Examples:
+        • $restock #announcements @everyone Nitro 1 Year | $15.00 | 50 units in stock!
+        • $restock @everyone Nitro 1 Month | $5.00
+        • $restock #updates Spotify 1 Year restocked!
+        """
+        if not raw_input or not raw_input.strip():
+            return await ctx.send(embed=error_embed(
+                "Missing Restock Details",
+                "**Usage:** `$restock [#channel] [@everyone|@here] <Item Name> | <Price> | [Details]`\n\n"
+                "**Examples:**\n"
+                "• `$restock #announcements @everyone Nitro 1 Year | $15.00 | 50 in stock! Instant delivery.`\n"
+                "• `$restock @everyone Spotify Premium 1 Year | $12.00 | Fresh accounts restocked!`"
+            ))
+
+        target_channel = ctx.channel
+        text = raw_input.strip()
+
+        # Check if first token is a channel mention (e.g. <#123456789>)
+        tokens = text.split(maxsplit=1)
+        if tokens[0].startswith("<#") and tokens[0].endswith(">"):
+            try:
+                chan_id = int(tokens[0].replace("<#", "").replace(">", ""))
+                found_chan = ctx.guild.get_channel(chan_id)
+                if found_chan and isinstance(found_chan, discord.TextChannel):
+                    target_channel = found_chan
+                    text = tokens[1] if len(tokens) > 1 else ""
+            except Exception:
+                pass
+
+        # Check for @everyone or @here mentions
+        mention_str = ""
+        if "@everyone" in text:
+            mention_str = "@everyone"
+            text = text.replace("@everyone", "").strip()
+        elif "@here" in text:
+            mention_str = "@here"
+            text = text.replace("@here", "").strip()
+
+        # Parse pipe syntax if provided
+        parts = [p.strip() for p in text.split("|")]
+        item_name = parts[0]
+        price_str = parts[1] if len(parts) > 1 else None
+        extra_details = parts[2] if len(parts) > 2 else None
+
+        # If price wasn't specified via pipe, check database
+        if not price_str:
+            items = await db.get_shop_items(ctx.guild.id)
+            for it in items:
+                if it["name"].lower() in item_name.lower():
+                    price_str = it["price"]
+                    if not extra_details and it.get("description"):
+                        extra_details = it["description"]
+                    break
+
+        # Check real-time stock count from DB
+        stock_count = await db.get_item_stock_count(ctx.guild.id, item_name)
+        stock_display = f"🟢 **{stock_count} units available**" if stock_count > 0 else "🟢 **Fresh Batch In Stock**"
+
+        # Fetch accepted payment methods
+        payment_methods = await db.get_payment_methods(ctx.guild.id)
+        pm_names = ", ".join([f"`{pm['method_name']}`" for pm in payment_methods[:4]]) if payment_methods else "`Crypto (LTC/BTC)`, `PayPal`, `CashApp`"
+
+        embed = standard_embed(
+            title=f"🔥 MASSIVE SHOP RESTOCK ALERT • {item_name}",
+            description=(
+                f"Fresh inventory has just been restocked in the store!\n"
+                f"Grab yours now before stock sells out!\n\n"
+                f"📦 **Product:** `{item_name}`\n"
+                f"💰 **Price:** `{price_str or 'See Catalog ($shop)'}`\n"
+                f"📊 **Availability:** {stock_display}\n"
+                f"💳 **Accepted Gateways:** {pm_names}\n"
+                f"⚡ **Delivery:** Instant automated delivery with warranty!\n"
+            ),
+            color=0x2ECC71
+        )
+        if extra_details:
+            embed.add_field(name="📝 Details & Features", value=f"```{extra_details}```", inline=False)
+
+        if ctx.guild.icon:
+            embed.set_thumbnail(url=ctx.guild.icon.url)
+        embed.set_footer(text=f"Zyath Official Store • Click the button below to buy instantly!")
+
+        view = RestockBuyView(item_name)
+        allowed = discord.AllowedMentions(everyone=True, roles=True, users=True)
+
+        if mention_str:
+            await target_channel.send(content=mention_str, embed=embed, view=view, allowed_mentions=allowed)
+        else:
+            await target_channel.send(embed=embed, view=view)
+
+        if target_channel.id != ctx.channel.id:
+            await ctx.send(embed=success_embed("Restock Alert Sent", f"Broadcasted restock alert to {target_channel.mention}!"))
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Shop(bot))

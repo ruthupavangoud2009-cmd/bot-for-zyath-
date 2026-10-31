@@ -77,8 +77,24 @@ MODULES = {
             ("`$payment`", "Display accepted payment methods and verified wallet addresses."),
             ("`$setpayment <name> | <addr> | [note]`", "Configure a payment method or crypto wallet."),
             ("`$delpayment <id>`", "Remove an existing payment method."),
+            ("`$restock [#channel] [@everyone] <Item> | <Price> | [Details]`", "Broadcast restock alert with 1-click buy button."),
             ("`$tos`", "View shop Terms of Service, warranty, and replacement policy."),
             ("`$settos <text>`", "Set custom shop Terms of Service.")
+        ]
+    },
+    "ai": {
+        "title": "🤖 AI Store & Ticket Manager",
+        "description": "24/7 intelligent automated shop assistant. Answers customer tickets when sellers are offline, scans stock, and gives real-time inventory updates.",
+        "emoji": "🤖",
+        "color": 0x5865F2,
+        "commands": [
+            ("`$ai <question>`", "Ask the AI Shop Assistant any question directly."),
+            ("`$stock` / `$inventory`", "View real-time live stock counts of all products."),
+            ("`$airestock <Item> [list/.txt]`", "AI stock scanner: feed raw accounts/keys or attach file to auto-count and import stock."),
+            ("`$clearstock <Item>`", "Purge stock records for a specific product."),
+            ("`$aimanager <on|off>`", "Toggle automated AI offline ticket assistance."),
+            ("`$aisettings`", "View current AI Assistant configuration and stock metrics."),
+            ("`$aisetprompt <text>`", "Set custom personality or store instructions for the AI.")
         ]
     },
     "trades": {
@@ -170,6 +186,7 @@ class HelpSelect(discord.ui.Select):
             discord.SelectOption(label="Tickets", description="Panels, transcripts, claim, invoices", emoji="🎫", value="tickets"),
             discord.SelectOption(label="Vouches & Leaderboard", description="Reputation logger, top sellers, stats", emoji="⭐", value="vouches"),
             discord.SelectOption(label="Shop & Storefront", description="Store catalog, crypto payments, TOS", emoji="🛒", value="shop"),
+            discord.SelectOption(label="AI Store & Restock", description="AI Manager, live stock, bulk restocks", emoji="🤖", value="ai"),
             discord.SelectOption(label="Middleman & Trades", description="Live MM trade receipts and $mercy", emoji="🤝", value="trades"),
             discord.SelectOption(label="Guess The Number", description="GTN mini-game with +/- reactions", emoji="🎮", value="gtn"),
             discord.SelectOption(label="Welcomer", description="Welcome embeds, autoroles, leave logs", emoji="👋", value="welcomer"),

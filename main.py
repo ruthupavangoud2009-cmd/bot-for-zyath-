@@ -96,6 +96,7 @@ class ZyathBot(commands.Bot):
             "cogs.fun",
             "cogs.help",
             "cogs.owner",
+            "cogs.ai_manager",
             "cogs.slash"
         ]
 
