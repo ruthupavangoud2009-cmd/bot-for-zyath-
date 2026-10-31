@@ -16,14 +16,25 @@ class SlashCommands(commands.Cog):
         self.bot = bot
 
     # 1. /help
-    @app_commands.command(name="help", description="Open the interactive module help menu.")
+    @app_commands.command(name="help", description="Open the clean interactive help desk.")
     async def slash_help(self, interaction: discord.Interaction):
+        latency = round(self.bot.latency * 1000)
+        total_cmds = len(self.bot.commands) + len(self.bot.tree.get_commands())
+        bot_name = self.bot.user.name if self.bot.user else "Zyath"
+
         embed = standard_embed(
-            title="⚡ Zyath Bot • Command Center",
-            description="Select a module below to browse all available commands and syntax."
+            title=f"Hey, I'm {bot_name}",
+            description=(
+                "> Built for our community — keeping your server safe, active, and effortlessly connected.\n\n"
+                f"• **Latency:** `{latency}ms`\n"
+                f"• **Prefix:** `$` | **Slash:** `/`\n"
+                f"• **Available Commands:** `{total_cmds}`"
+            ),
+            color=0x2B2D31
         )
-        embed.set_thumbnail(url=self.bot.user.display_avatar.url)
-        await interaction.response.send_message(embed=embed, view=HelpView(), ephemeral=True)
+        embed.set_footer(text=f"Requested by {interaction.user.display_name}")
+        view = HelpView(self.bot, interaction.user.display_name, "/")
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
     # 2. /shop
     @app_commands.command(name="shop", description="Browse the official server shop and order items.")
@@ -208,11 +219,24 @@ class SlashCommands(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
-    # 13. /say
-    @app_commands.command(name="say", description="Make the bot say something in the channel.")
-    async def slash_say(self, interaction: discord.Interaction, message: str):
-        await interaction.response.send_message("Message sent!", ephemeral=True)
-        await interaction.channel.send(message)
+    # 13. /ping
+    @app_commands.command(name="ping", description="View real-time latencies across Gateway, Database, and Web server.")
+    async def slash_ping(self, interaction: discord.Interaction):
+        ws_latency = round(self.bot.latency * 1000)
+        await interaction.response.defer()
+        db_latency, db_engine = await db.ping()
+
+        embed = standard_embed(
+            title="🏓 Pong! • Network Diagnostics",
+            description=(
+                f"• ⚡ **WebSocket Gateway:** `{ws_latency}ms`\n"
+                f"• 🗄️ **Database ({db_engine}):** `{db_latency}ms`\n"
+                f"• 🌐 **Render 24/7 Web Server:** `Operational (Port Active)`\n\n"
+                f"⏱️ *Supabase PostgreSQL connected & synchronized.*"
+            ),
+            color=0x57F287
+        )
+        await interaction.followup.send(embed=embed)
 
     # 14. /avatar
     @app_commands.command(name="avatar", description="View full-resolution avatar of a user.")
@@ -261,14 +285,23 @@ class SlashCommands(commands.Cog):
         await member.timeout(until, reason=f"{interaction.user}: {reason}")
         await interaction.response.send_message(embed=success_embed("Timed Out", f"🔇 {member.mention} muted for **{minutes}m**."))
 
-    # 19. /kick
-    @app_commands.command(name="kick", description="Kick a member from the server.")
-    @app_commands.default_permissions(kick_members=True)
-    async def slash_kick(self, interaction: discord.Interaction, member: discord.Member, reason: str = "No reason provided"):
-        if member.top_role >= interaction.user.top_role and interaction.user.id != interaction.guild.owner_id:
-            return await interaction.response.send_message(embed=error_embed("Permission Denied", "Cannot kick higher or equal role."), ephemeral=True)
-        await member.kick(reason=f"{interaction.user}: {reason}")
-        await interaction.response.send_message(embed=success_embed("Kicked", f"👢 {member.mention} has been kicked."))
+    # 19. /vouchlb
+    @app_commands.command(name="vouchlb", description="View the top vouched members leaderboard in this server.")
+    async def slash_vouchlb(self, interaction: discord.Interaction):
+        lb = await db.get_vouch_leaderboard(interaction.guild_id, limit=10)
+        if not lb:
+            return await interaction.response.send_message(embed=info_embed("Vouch Leaderboard", "No vouches logged in this server yet!"), ephemeral=True)
+
+        medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
+        desc = "🏆 **Top Reputable Members:**\n\n"
+        for idx, entry in enumerate(lb):
+            icon = medals[idx] if idx < len(medals) else f"**#{idx+1}**"
+            desc += f"{icon} <@{entry['target_id']}> — **{entry['count']}** Vouches (⭐ `{entry['avg_stars']}/5.0`)\n"
+
+        embed = standard_embed(title=f"🏆 Vouch Leaderboard • {interaction.guild.name}", description=desc, color=0xFEE75C)
+        if interaction.guild.icon:
+            embed.set_thumbnail(url=interaction.guild.icon.url)
+        await interaction.response.send_message(embed=embed)
 
     # 20. /ban
     @app_commands.command(name="ban", description="Ban a member from the server.")

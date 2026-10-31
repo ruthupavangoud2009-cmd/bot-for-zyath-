@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from utils.embeds import standard_embed, COLOR_PRIMARY
+from utils.database import db
 
 MODULES = {
     "moderation": {
@@ -12,7 +13,7 @@ MODULES = {
             ("`$kick @user [reason]`", "Kick a user from the server."),
             ("`$ban @user [reason]`", "Ban a user permanently from the server."),
             ("`$unban <user_id> [reason]`", "Unban a user by their user ID."),
-            ("`$mute / $timeout @user <duration> [reason]`", "Timeout a member (e.g. `10m`, `1h`, `7d`)."),
+            ("`$mute @user <duration> [reason]`", "Timeout a member (e.g. `10m`, `1h`, `7d`)."),
             ("`$unmute @user`", "Remove timeout from a member."),
             ("`$warn @user [reason]`", "Issue an official logged warning to a member."),
             ("`$warnings @user`", "View all warning records for a member."),
@@ -28,11 +29,11 @@ MODULES = {
     },
     "tickets": {
         "title": "🎫 Advanced Ticket System",
-        "description": "Fully automated, interactive support tickets with modals, transcripts, and claim features.",
+        "description": "Fully automated, interactive support tickets with modals, transcripts, invoices, and claim features.",
         "emoji": "🎫",
         "color": 0x5865F2,
         "commands": [
-            ("`$ticketpanel [#channel]`", "Deploy the interactive ticket creation panel with categories."),
+            ("`$ticketpanel [#channel]`", "Deploy the interactive ticket creation panel with categories & buttons."),
             ("`$createembed [#channel]`", "Open the interactive custom embed creator modal."),
             ("`$invoice <amount> <method> [product]`", "Send an official order payment invoice inside a ticket."),
             ("`$setticketcategory <category_id>`", "Set the Discord category under which tickets are opened."),
@@ -44,37 +45,19 @@ MODULES = {
             ("`$ticket remove @user`", "Remove a member from the active ticket.")
         ]
     },
-    "gtn": {
-        "title": "🎮 Guess The Number Game",
-        "description": "Interactive mini-game with real-time reaction hints and channel locking.",
-        "emoji": "🎮",
-        "color": 0x57F287,
-        "commands": [
-            ("`$gtn <min> <max>`", "Start a game (e.g. `$gtn 1 5000`). Bot reacts with `➕` if lower, `➖` if higher."),
-            ("`$gtnstop`", "Stop the currently running game in this channel."),
-            ("`$gtnstatus`", "Check the current game range and total guesses made.")
-        ]
-    },
-    "trades": {
-        "title": "🤝 Live MM Trades & Mercy",
-        "description": "Log and track Middleman transactions with verified receipt cards.",
-        "emoji": "🤝",
-        "color": 0xFEE75C,
-        "commands": [
-            ("`$mercy`", "Open the interactive MM Receipt Modal or provide parameters directly."),
-            ("`$mercy @buyer @seller <amount> <details>`", "Quickly post a verified Middleman receipt to the trade/vouch channel."),
-            ("`$trade <trade_id>`", "Check the status and metadata of a specific trade (e.g. `$trade TRD-8421`)."),
-            ("`$settradechannel #channel`", "Set the dedicated channel for live MM receipts.")
-        ]
-    },
     "vouches": {
-        "title": "⭐ Vouch System",
-        "description": "Track member reputation, review history, and 5-star ratings.",
+        "title": "⭐ Vouch System & Leaderboard",
+        "description": "Track member reputation, review history, leaderboards, and star ratings.",
         "emoji": "⭐",
         "color": 0xFEE75C,
         "commands": [
             ("`$vouch @user [1-5 stars] <comment>`", "Submit a reputation vouch for a trader/member."),
             ("`$vouches [@user]`", "View total vouches, star rating, and recent feedback for a user."),
+            ("`$vouchlb` / `$vlb`", "View the top vouched members leaderboard in the server."),
+            ("`$vouchinfo <vouch_id>`", "View full metadata for a specific vouch."),
+            ("`$delvouch <vouch_id>`", "Staff command to delete a false or inappropriate vouch."),
+            ("`$vouchstats`", "View server-wide vouch metrics and averages."),
+            ("`$importvouches @user <count>`", "Admin command to credit legacy vouches for migration."),
             ("`$setvouchchannel #channel`", "Set the official channel where new vouches are broadcasted.")
         ]
     },
@@ -93,6 +76,29 @@ MODULES = {
             ("`$delpayment <id>`", "Remove an existing payment method."),
             ("`$tos`", "View shop Terms of Service, warranty, and replacement policy."),
             ("`$settos <text>`", "Set custom shop Terms of Service.")
+        ]
+    },
+    "trades": {
+        "title": "🤝 Live MM Trades & Mercy",
+        "description": "Log and track Middleman transactions with verified receipt cards.",
+        "emoji": "🤝",
+        "color": 0xFEE75C,
+        "commands": [
+            ("`$mercy`", "Open the interactive MM Receipt Modal or provide parameters directly."),
+            ("`$mercy @buyer @seller <amount> <details>`", "Quickly post a verified Middleman receipt to the trade/vouch channel."),
+            ("`$trade <trade_id>`", "Check the status and metadata of a specific trade (e.g. `$trade TRD-8421`)."),
+            ("`$settradechannel #channel`", "Set the dedicated channel for live MM receipts.")
+        ]
+    },
+    "gtn": {
+        "title": "🎮 Guess The Number Game",
+        "description": "Interactive mini-game with real-time reaction hints and channel locking.",
+        "emoji": "🎮",
+        "color": 0x57F287,
+        "commands": [
+            ("`$gtn <min> <max>`", "Start a game (e.g. `$gtn 1 5000`). Bot reacts with `➕` if lower, `➖` if higher."),
+            ("`$gtnstop`", "Stop the currently running game in this channel."),
+            ("`$gtnstatus`", "Check the current game range and total guesses made.")
         ]
     },
     "welcomer": {
@@ -121,6 +127,7 @@ MODULES = {
             ("`$cancelspam [all]`", "Cancel and stop active ghost spam immediately (Aliases: $stopspam, $stop)."),
             ("`$setspamusers @user`", "Authorize a user to execute the restricted `$spam` command."),
             ("`$removespamuser @user`", "Revoke `$spam` command permission for a user."),
+            ("`$ping`", "Display all real-time latencies (WebSocket, REST API, Supabase Database, Web Server)."),
             ("`$8ball <question>`", "Ask the magic fortune 8-ball."),
             ("`$coinflip`", "Flip a coin (Heads or Tails)."),
             ("`$roll [max]`", "Roll a random number dice."),
@@ -128,27 +135,46 @@ MODULES = {
             ("`$avatar [@user]`", "Display full-resolution avatar of a user."),
             ("`$userinfo [@user]`", "Display detailed Discord profile data for a member."),
             ("`$serverinfo`", "Display server stats, member count, boost level, and info."),
-            ("`$poll <question>`", "Create a thumbs up/down reaction poll."),
-            ("`$ping`", "Display bot WebSocket latency.")
+            ("`$poll <question>`", "Create a thumbs up/down reaction poll.")
+        ]
+    },
+    "owner": {
+        "title": "👑 Management & No-Prefix",
+        "description": "Bot control, live diagnostics, reload, and no-prefix whitelist.",
+        "emoji": "👑",
+        "color": 0x57F287,
+        "commands": [
+            ("`$np add @user`", "Authorize a member to use all bot commands without prefix."),
+            ("`$np remove @user`", "Revoke no-prefix permissions for a user."),
+            ("`$np list`", "List all authorized no-prefix members."),
+            ("`$botstats`", "View system hardware diagnostics, CPU, RAM, and Supabase database latency."),
+            ("`$checkperms` / `$perms`", "Perform full server permission audit to ensure zero missing permissions."),
+            ("`$sync`", "Globally synchronize application slash commands to Discord."),
+            ("`$reload <cog|all>`", "Hot-reload bot cogs without taking the bot offline.")
         ]
     }
 }
 
 class HelpSelect(discord.ui.Select):
-    def __init__(self):
+    def __init__(self, bot: commands.Bot, author_name: str, prefix: str):
+        self.bot = bot
+        self.author_name = author_name
+        self.prefix = prefix
+
         options = [
-            discord.SelectOption(label="Home / Overview", description="Main help desk and overview", emoji="🏠", value="home"),
+            discord.SelectOption(label="Home", description="Return to main dashboard overview", emoji="🏠", value="home"),
             discord.SelectOption(label="Moderation", description="Ban, kick, mute, warn, lock, purge", emoji="🛡️", value="moderation"),
-            discord.SelectOption(label="Ticket System", description="Panels, transcripts, claim, controls", emoji="🎫", value="tickets"),
-            discord.SelectOption(label="Guess The Number", description="GTN mini-game with +/- reactions", emoji="🎮", value="gtn"),
+            discord.SelectOption(label="Tickets", description="Panels, transcripts, claim, invoices", emoji="🎫", value="tickets"),
+            discord.SelectOption(label="Vouches & Leaderboard", description="Reputation logger, top sellers, stats", emoji="⭐", value="vouches"),
+            discord.SelectOption(label="Shop & Storefront", description="Store catalog, crypto payments, TOS", emoji="🛒", value="shop"),
             discord.SelectOption(label="Middleman & Trades", description="Live MM trade receipts and $mercy", emoji="🤝", value="trades"),
-            discord.SelectOption(label="Vouch System", description="Reputation logger and 5-star ratings", emoji="⭐", value="vouches"),
-            discord.SelectOption(label="Shop System", description="Storefront catalog and ticket ordering", emoji="🛒", value="shop"),
+            discord.SelectOption(label="Guess The Number", description="GTN mini-game with +/- reactions", emoji="🎮", value="gtn"),
             discord.SelectOption(label="Welcomer", description="Welcome embeds, autoroles, leave logs", emoji="👋", value="welcomer"),
-            discord.SelectOption(label="Fun & Utilities", description="$say, $spam, 8ball, coinflip, avatar", emoji="🎉", value="fun")
+            discord.SelectOption(label="Fun & Utilities", description="$say, $spam, multi-ping, 8ball, tools", emoji="🎉", value="fun"),
+            discord.SelectOption(label="Management & Owner", description="No-prefix, diagnostics, perms audit", emoji="👑", value="owner")
         ]
         super().__init__(
-            placeholder="📂 Select a module to explore commands...",
+            placeholder="🏠 Home",
             min_values=1,
             max_values=1,
             options=options
@@ -158,93 +184,96 @@ class HelpSelect(discord.ui.Select):
         choice = self.values[0]
 
         if choice == "home":
+            latency = round(self.bot.latency * 1000)
+            total_cmds = len(self.bot.commands) + len(self.bot.tree.get_commands())
+            bot_name = self.bot.user.name if self.bot.user else "Zyath"
+
             embed = standard_embed(
-                title="⚡ Zyath Bot • Command Center",
+                title=f"Hey, I'm {bot_name}",
                 description=(
-                    "Welcome to the **Zyath Bot** Help Menu!\n\n"
-                    "Use the dropdown selector below to browse through each command category.\n\n"
-                    "**Available Modules:**\n"
-                    "• 🛡️ **Moderation** — Powerful server moderation & audit logs\n"
-                    "• 🎫 **Ticket System** — Automated interactive support & orders\n"
-                    "• 🎮 **Guess The Number** — Channel locking mini-game with reactions\n"
-                    "• 🤝 **Middleman & Trades** — Official `$mercy` live transaction logger\n"
-                    "• ⭐ **Vouch System** — Reputation logger with star ratings\n"
-                    "• 🛒 **Shop System** — Digital store with direct-to-ticket checkout\n"
-                    "• 👋 **Welcomer** — Custom greetings & autorole\n"
-                    "• 🎉 **Fun & Utilities** — `$say`, restricted ghost `$spam`, tools\n\n"
-                    "💡 *Default prefix is `$` (e.g. `$help`). Select a module below to start!*"
+                    "> Built for our community — keeping your server safe, active, and effortlessly connected.\n\n"
+                    f"• **Latency:** `{latency}ms`\n"
+                    f"• **Prefix:** `{self.prefix}` | **Slash:** `/`\n"
+                    f"• **Available Commands:** `{total_cmds}`"
                 ),
-                color=COLOR_PRIMARY
+                color=0x2B2D31
             )
-            embed.set_thumbnail(url=interaction.client.user.display_avatar.url)
-            await interaction.response.edit_message(embed=embed, view=self.view)
-            return
+            embed.set_footer(text=f"Requested by {self.author_name}")
+            return await interaction.response.edit_message(embed=embed, view=self.view)
 
         module = MODULES.get(choice)
         if not module:
             return await interaction.response.send_message("Module not found.", ephemeral=True)
 
+        desc = f"> {module['description']}\n\n"
+        for cmd, cmd_desc in module["commands"]:
+            desc += f"• **{cmd}**\n  └ *{cmd_desc}*\n"
+
         embed = standard_embed(
             title=module["title"],
-            description=f"{module['description']}\n\n",
+            description=desc,
             color=module["color"]
         )
-
-        for cmd, desc in module["commands"]:
-            embed.add_field(name=cmd, value=f"> {desc}", inline=False)
-
-        embed.set_footer(text=f"Zyath Bot • {module['title']} • Use $ before commands")
+        embed.set_footer(text=f"Requested by {self.author_name} • Use {self.prefix} before commands")
         await interaction.response.edit_message(embed=embed, view=self.view)
 
 class HelpView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, bot: commands.Bot, author_name: str, prefix: str):
         super().__init__(timeout=300)
-        self.add_item(HelpSelect())
+        self.add_item(HelpSelect(bot, author_name, prefix))
+
+        # Add link buttons matching user screenshot
+        invite_url = "https://discord.com/oauth2/authorize?client_id=1521774957065928734&permissions=8&scope=bot%20applications.commands"
+        if bot.user:
+            invite_url = f"https://discord.com/oauth2/authorize?client_id={bot.user.id}&permissions=8&scope=bot%20applications.commands"
+
+        self.add_item(discord.ui.Button(label="Invite Zyath", style=discord.ButtonStyle.link, url=invite_url, emoji="🚀"))
+        self.add_item(discord.ui.Button(label="Support Server", style=discord.ButtonStyle.link, url="https://discord.gg/zyath", emoji="💬"))
 
 class Help(commands.Cog):
-    """Modern module-based help menu with interactive dropdowns."""
+    """Modern, minimalist, and ultra-aesthetic help desk modeled after top-tier community bots."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.command(name="help", help="Display the interactive module-based help menu.")
+    @commands.command(name="help", aliases=["commands", "h", "cmds"], help="Display the clean interactive help desk.")
     async def help_cmd(self, ctx: commands.Context, module_name: str = None):
+        prefix = ctx.prefix or "$"
+
         if module_name:
             clean_name = module_name.lower().strip()
             for key, mod in MODULES.items():
                 if clean_name in key or key in clean_name:
+                    desc = f"> {mod['description']}\n\n"
+                    for cmd, cmd_desc in mod["commands"]:
+                        desc += f"• **{cmd}**\n  └ *{cmd_desc}*\n"
                     embed = standard_embed(
                         title=mod["title"],
-                        description=f"{mod['description']}\n\n",
+                        description=desc,
                         color=mod["color"]
                     )
-                    for cmd, desc in mod["commands"]:
-                        embed.add_field(name=cmd, value=f"> {desc}", inline=False)
+                    embed.set_footer(text=f"Requested by {ctx.author.display_name}")
                     return await ctx.send(embed=embed)
 
+        latency = round(self.bot.latency * 1000)
+        total_cmds = len(self.bot.commands) + len(self.bot.tree.get_commands())
+        bot_name = self.bot.user.name if self.bot.user else "Zyath"
+
         embed = standard_embed(
-            title="⚡ Zyath Bot • Command Center",
+            title=f"Hey, I'm {bot_name}",
             description=(
-                "Welcome to the **Zyath Bot** Help Menu!\n\n"
-                "Use the dropdown selector below to browse through each command category.\n\n"
-                "**Available Modules:**\n"
-                "• 🛡️ **Moderation** — Powerful server moderation & audit logs\n"
-                "• 🎫 **Ticket System** — Automated interactive support & orders\n"
-                "• 🎮 **Guess The Number** — Channel locking mini-game with reactions\n"
-                "• 🤝 **Middleman & Trades** — Official `$mercy` live transaction logger\n"
-                "• ⭐ **Vouch System** — Reputation logger with star ratings\n"
-                "• 🛒 **Shop System** — Digital store with direct-to-ticket checkout\n"
-                "• 👋 **Welcomer** — Custom greetings & autorole\n"
-                "• 🎉 **Fun & Utilities** — `$say`, restricted ghost `$spam`, tools\n\n"
-                "💡 *Default prefix is `$` (e.g. `$help`). Select a module below to start!*"
+                "> Built for our community — keeping your server safe, active, and effortlessly connected.\n\n"
+                f"• **Latency:** `{latency}ms`\n"
+                f"• **Prefix:** `{prefix}` | **Slash:** `/`\n"
+                f"• **Available Commands:** `{total_cmds}`"
             ),
-            color=COLOR_PRIMARY
+            color=0x2B2D31
         )
-        embed.set_thumbnail(url=self.bot.user.display_avatar.url if self.bot.user else None)
-        embed.set_footer(text="Select a category from the dropdown below")
-        await ctx.send(embed=embed, view=HelpView())
+        embed.set_footer(text=f"Requested by {ctx.author.display_name}")
+
+        view = HelpView(self.bot, ctx.author.display_name, prefix)
+        await ctx.send(embed=embed, view=view)
 
 async def setup(bot: commands.Bot):
-    # Remove default discord.py help command
     bot.help_command = None
     await bot.add_cog(Help(bot))

@@ -116,8 +116,8 @@ class Owner(commands.Cog):
         embed.add_field(name="💾 RAM Usage", value=f"{ram_mb} MB", inline=True)
         embed.add_field(name="🌐 Guilds", value=str(len(self.bot.guilds)), inline=True)
         embed.add_field(name="👥 Total Members", value=f"{sum(g.member_count for g in self.bot.guilds):,}", inline=True)
-        embed.add_field(name="🛒 Shop Items (Server)", value=str(len(shop_items)), inline=True)
-        embed.add_field(name="🗄️ Database", value="`zyath_bot.db` (SQLite3 / aiosqlite)", inline=True)
+        db_lat, db_engine = await db.ping()
+        embed.add_field(name="🗄️ Database", value=f"`{db_engine}` ({db_lat}ms)", inline=True)
 
         await ctx.send(embed=embed)
 

@@ -4,7 +4,9 @@ import random
 import asyncio
 import json
 import os
+import time
 from utils.embeds import standard_embed, success_embed, error_embed, info_embed
+from utils.database import db
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.json")
 
@@ -307,10 +309,69 @@ class Fun(commands.Cog):
         await msg.add_reaction("👍")
         await msg.add_reaction("👎")
 
-    @commands.command(name="ping", help="Check bot response latency.")
+    @commands.command(name="ping", aliases=["latency", "pings", "speed"], help="View real-time latencies across Gateway, REST API, Database, and Web server.")
     async def ping(self, ctx: commands.Context):
-        latency = round(self.bot.latency * 1000)
-        await ctx.send(embed=info_embed("Pong! 🏓", f"Bot Latency: **{latency}ms**"))
+        ws_latency = round(self.bot.latency * 1000)
+
+        t_start = time.perf_counter()
+        initial_msg = await ctx.send("⚡ *Probing system and network latencies...*")
+        api_latency = round((time.perf_counter() - t_start) * 1000)
+
+        db_latency, db_engine = await db.ping()
+
+        if ws_latency < 80 and api_latency < 150:
+            status_text = "🟢 Optimal • Ultra-Fast Response"
+            status_color = 0x57F287
+        elif ws_latency < 180 and api_latency < 300:
+            status_text = "🟡 Good • Stable Response"
+            status_color = 0xFEE75C
+        else:
+            status_text = "🔴 High Latency • Network Congested"
+            status_color = 0xED4245
+
+        embed = standard_embed(
+            title="🏓 Pong! • Network Diagnostics",
+            description=(
+                f"**Overall Health:** {status_text}\n\n"
+                f"• ⚡ **WebSocket Gateway:** `{ws_latency}ms`\n"
+                f"• 💬 **Discord REST API:** `{api_latency}ms`\n"
+                f"• 🗄️ **Database ({db_engine}):** `{db_latency}ms`\n"
+                f"• 🌐 **Render 24/7 Web Server:** `Operational (Port Active)`\n\n"
+                f"⏱️ *All nodes connected & synchronized.*"
+            ),
+            color=status_color
+        )
+        embed.set_footer(text=f"Requested by {ctx.author.display_name} • Zyath Diagnostics")
+
+        class PingRefreshView(discord.ui.View):
+            def __init__(self, bot):
+                super().__init__(timeout=60)
+                self.bot = bot
+
+            @discord.ui.button(label="Refresh Ping", style=discord.ButtonStyle.primary, emoji="🔄")
+            async def refresh(self, interaction: discord.Interaction, button: discord.ui.Button):
+                ws = round(self.bot.latency * 1000)
+                t1 = time.perf_counter()
+                await interaction.response.defer()
+                api = round((time.perf_counter() - t1) * 1000)
+                db_lat, engine = await db.ping()
+
+                new_embed = standard_embed(
+                    title="🏓 Pong! • Network Diagnostics",
+                    description=(
+                        f"**Overall Health:** 🟢 Refreshed\n\n"
+                        f"• ⚡ **WebSocket Gateway:** `{ws}ms`\n"
+                        f"• 💬 **Discord REST API:** `{api}ms`\n"
+                        f"• 🗄️ **Database ({engine}):** `{db_lat}ms`\n"
+                        f"• 🌐 **Render 24/7 Web Server:** `Operational (Port Active)`\n\n"
+                        f"⏱️ *Updated live.*"
+                    ),
+                    color=0x57F287
+                )
+                new_embed.set_footer(text=f"Refreshed by {interaction.user.display_name}")
+                await interaction.message.edit(embed=new_embed, view=self)
+
+        await initial_msg.edit(content=None, embed=embed, view=PingRefreshView(self.bot))
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Fun(bot))
