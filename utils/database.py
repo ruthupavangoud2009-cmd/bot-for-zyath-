@@ -752,6 +752,29 @@ class Database:
                 await db.execute("DELETE FROM tickets WHERE channel_id = ?", (channel_id,))
                 await db.commit()
 
+    async def get_ticket_stats(self, guild_id: int) -> Dict[str, Any]:
+        stats = {"total": 0, "open": 0, "closed": 0, "categories": {}}
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                stats["total"] = await conn.fetchval("SELECT COUNT(*) FROM tickets WHERE guild_id = $1", guild_id) or 0
+                stats["open"] = await conn.fetchval("SELECT COUNT(*) FROM tickets WHERE guild_id = $1 AND status = 'open'", guild_id) or 0
+                stats["closed"] = await conn.fetchval("SELECT COUNT(*) FROM tickets WHERE guild_id = $1 AND status = 'closed'", guild_id) or 0
+                cat_rows = await conn.fetch("SELECT category, COUNT(*) as c FROM tickets WHERE guild_id = $1 GROUP BY category ORDER BY c DESC LIMIT 5", guild_id)
+                for r in cat_rows:
+                    stats["categories"][r["category"]] = r["c"]
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("SELECT COUNT(*) FROM tickets WHERE guild_id = ?", (guild_id,))
+                stats["total"] = (await cursor.fetchone())[0] or 0
+                cursor = await db.execute("SELECT COUNT(*) FROM tickets WHERE guild_id = ? AND status = 'open'", (guild_id,))
+                stats["open"] = (await cursor.fetchone())[0] or 0
+                cursor = await db.execute("SELECT COUNT(*) FROM tickets WHERE guild_id = ? AND status = 'closed'", (guild_id,))
+                stats["closed"] = (await cursor.fetchone())[0] or 0
+                cursor = await db.execute("SELECT category, COUNT(*) as c FROM tickets WHERE guild_id = ? GROUP BY category ORDER BY c DESC LIMIT 5", (guild_id,))
+                for r in await cursor.fetchall():
+                    stats["categories"][r[0]] = r[1]
+        return stats
+
     # ==========================================
     # MODULAR TICKET CATEGORIES
     # ==========================================

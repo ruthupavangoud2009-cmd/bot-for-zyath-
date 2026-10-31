@@ -99,24 +99,31 @@ class SlashCommands(commands.Cog):
     async def slash_ticketpanel(self, interaction: discord.Interaction, channel: discord.TextChannel = None):
         target = channel or interaction.channel
         categories = await db.get_ticket_categories(interaction.guild_id)
-        desc_lines = [
-            "Welcome to our community support desk!",
-            "Choose a category from the dropdown or click a quick button below to open your private ticket.\n",
-            "**📌 Available Categories:**"
-        ]
+        stats = await db.get_ticket_stats(interaction.guild_id)
+        bot_name = self.bot.user.name if self.bot.user else "Zyath"
+
+        cat_bullets = []
         for cat in categories:
-            desc_lines.append(f"• {cat.get('emoji', '🎫')} **{cat['name']}** — *{cat.get('description', 'Click to open ticket')}*")
-        desc_lines.append("\n⚡ *A staff member will assist you immediately.*")
+            cat_bullets.append(f"• **{cat.get('emoji', '🎫')} {cat['name']}**\n  └ *{cat.get('description', 'Click to open ticket')}*")
+        cat_desc = "\n".join(cat_bullets)
 
         embed = standard_embed(
-            title="🎫 Support & Service Tickets",
-            description="\n".join(desc_lines),
-            color=0x5865F2
+            title=f"Hey, I'm {bot_name} • Support Desk",
+            description=(
+                "> Built for our community — keeping orders safe, tickets verified, and support instant.\n\n"
+                f"• **Support Status:** `🟢 Active 24/7` | **AI Assistant:** `Online`\n"
+                f"• **Available Hubs:** `{len(categories)} Modules` | **Resolved:** `{stats['total']}` Tickets\n"
+                f"• **Prefix:** `$` | **Slash:** `/`\n\n"
+                f"{cat_desc}\n\n"
+                "⚡ *Select a category from the dropdown or click a quick button below to open a ticket.*"
+            ),
+            color=0x2B2D31
         )
         if interaction.guild.icon:
             embed.set_thumbnail(url=interaction.guild.icon.url)
-        embed.set_footer(text=f"Zyath Modular Tickets • {interaction.guild.name}")
-        await target.send(embed=embed, view=TicketPanelView(categories))
+        embed.set_footer(text=f"Zyath Modular Desk • {interaction.guild.name}")
+        bot_id = self.bot.user.id if self.bot.user else None
+        await target.send(embed=embed, view=TicketPanelView(categories, bot_user_id=bot_id))
         await interaction.response.send_message(embed=success_embed("Deployed", f"Modular panel sent to {target.mention}!"), ephemeral=True)
 
     # 7. /vouch

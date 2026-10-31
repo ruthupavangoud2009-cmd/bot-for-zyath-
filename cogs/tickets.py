@@ -137,15 +137,21 @@ class CreateTicketModal(discord.ui.Modal):
             mention_str += f" | {staff_role.mention}"
 
         welcome_ticket_embed = standard_embed(
-            title=f"{cat_emoji} {category_name} Ticket",
+            title=f"{cat_emoji} {category_name} • #{ticket_channel.name}",
             description=(
-                f"Welcome {user.mention}! Support staff has been notified.\n\n"
-                f"**📌 Subject:** `{self.subject.value}`\n"
-                f"**📝 Details:**\n```{self.details.value or 'No additional details provided.'}```\n"
-                f"Use the buttons below to manage this ticket."
+                f"> Welcome {user.mention}! Support staff and the Zyath AI Assistant have been notified.\n\n"
+                f"• **Ticket Creator:** {user.mention}\n"
+                f"• **Assigned Staff:** {staff_role.mention if staff_role else '*All Support Staff*'}\n"
+                f"• **Category:** `{category_name}`\n"
+                f"• **AI Manager:** `Active (24/7 Monitoring)`\n\n"
+                f"📌 **Subject:** `{self.subject.value}`\n"
+                f"📝 **Details:**\n```{self.details.value or 'No additional details provided.'}```\n\n"
+                "⚡ *Staff will assist you shortly. If staff is away, our AI Assistant is active!*"
             ),
+            color=0x2B2D31,
             thumbnail=user.display_avatar.url
         )
+        welcome_ticket_embed.set_footer(text=f"Zyath Support Desk • Ticket ID: {ticket_channel.id}")
 
         await ticket_channel.send(content=mention_str, embed=welcome_ticket_embed, view=TicketControlsView())
 
@@ -383,7 +389,7 @@ class ModularTicketButton(discord.ui.Button):
         await interaction.response.send_modal(CreateTicketModal(self.category_name, interaction.guild_id))
 
 class TicketPanelView(discord.ui.View):
-    def __init__(self, categories: list = None):
+    def __init__(self, categories: list = None, bot_user_id: int = None):
         super().__init__(timeout=None)
         cats = categories or [
             {"name": "Buy / Order", "emoji": "🛒", "description": "Purchase products, services, or custom orders"},
@@ -406,6 +412,12 @@ class TicketPanelView(discord.ui.View):
                 emoji=cat.get("emoji") or "🎫",
                 style=style
             ))
+
+        # Add link buttons matching Help module
+        client_id = bot_user_id or 1521774957065928734
+        invite_url = f"https://discord.com/oauth2/authorize?client_id={client_id}&permissions=8&scope=bot%20applications.commands"
+        self.add_item(discord.ui.Button(label="Invite Zyath", style=discord.ButtonStyle.link, url=invite_url, emoji="🚀"))
+        self.add_item(discord.ui.Button(label="Support Server", style=discord.ButtonStyle.link, url="https://discord.gg/zyath", emoji="💬"))
 
 # --- Cog Class ---
 class Tickets(commands.Cog):
@@ -470,25 +482,32 @@ class Tickets(commands.Cog):
     async def ticket_panel(self, ctx: commands.Context, channel: discord.TextChannel = None):
         target = channel or ctx.channel
         categories = await db.get_ticket_categories(ctx.guild.id)
-        desc_lines = [
-            "Welcome to our community support desk!",
-            "Choose a category from the dropdown or click a quick button below to open your private ticket.\n",
-            "**📌 Available Categories:**"
-        ]
+        stats = await db.get_ticket_stats(ctx.guild.id)
+        bot_name = self.bot.user.name if self.bot.user else "Zyath"
+
+        cat_bullets = []
         for cat in categories:
-            desc_lines.append(f"• {cat.get('emoji', '🎫')} **{cat['name']}** — *{cat.get('description', 'Click to open ticket')}*")
-        desc_lines.append("\n⚡ *A staff member will assist you immediately.*")
+            cat_bullets.append(f"• **{cat.get('emoji', '🎫')} {cat['name']}**\n  └ *{cat.get('description', 'Click to open ticket')}*")
+        cat_desc = "\n".join(cat_bullets)
 
         embed = standard_embed(
-            title="🎫 Support & Service Tickets",
-            description="\n".join(desc_lines),
-            color=0x5865F2
+            title=f"Hey, I'm {bot_name} • Support Desk",
+            description=(
+                "> Built for our community — keeping orders safe, tickets verified, and support instant.\n\n"
+                f"• **Support Status:** `🟢 Active 24/7` | **AI Assistant:** `Online`\n"
+                f"• **Available Hubs:** `{len(categories)} Modules` | **Resolved:** `{stats['total']}` Tickets\n"
+                f"• **Prefix:** `$` | **Slash:** `/`\n\n"
+                f"{cat_desc}\n\n"
+                "⚡ *Select a category from the dropdown or click a quick button below to open a ticket.*"
+            ),
+            color=0x2B2D31
         )
         if ctx.guild.icon:
             embed.set_thumbnail(url=ctx.guild.icon.url)
-        embed.set_footer(text=f"Zyath Modular Tickets • {ctx.guild.name}")
+        embed.set_footer(text=f"Zyath Modular Desk • {ctx.guild.name}")
 
-        await target.send(embed=embed, view=TicketPanelView(categories))
+        bot_id = self.bot.user.id if self.bot.user else None
+        await target.send(embed=embed, view=TicketPanelView(categories, bot_user_id=bot_id))
         if target.id != ctx.channel.id:
             await ctx.send(embed=success_embed("Panel Deployed", f"Modular ticket panel deployed in {target.mention}."))
 
@@ -625,6 +644,76 @@ class Tickets(commands.Cog):
                     await ctx.send(embed=success_embed("Member Removed", f"{member.mention} was removed from this ticket."))
             except Exception as e:
                 await ctx.send(embed=error_embed("Error", str(e)))
+
+        elif action in ["stats", "dashboard"]:
+            stats = await db.get_ticket_stats(ctx.guild.id)
+            embed = standard_embed(
+                title=f"📊 {ctx.guild.name} • Ticket System Dashboard",
+                description=(
+                    "> Live real-time analytics for the automated server support portal.\n\n"
+                    f"• **Total Tickets Created:** `{stats['total']}`\n"
+                    f"• **Active Open Tickets:** `🟢 {stats['open']}`\n"
+                    f"• **Resolved & Closed:** `🔒 {stats['closed']}`\n"
+                ),
+                color=0x2B2D31
+            )
+            if stats["categories"]:
+                cat_lines = [f"• **{cat}**: `{cnt}` tickets" for cat, cnt in stats["categories"].items()]
+                embed.add_field(name="📌 Top Modules", value="\n".join(cat_lines), inline=False)
+            embed.set_footer(text=f"Zyath Ticket Analytics • Requested by {ctx.author.display_name}")
+            await ctx.send(embed=embed)
+
+        elif action == "rename":
+            if not target:
+                return await ctx.send(embed=error_embed("Missing Argument", "Usage: `$ticket rename <new_name>`"))
+            clean_name = target.lower().replace(" ", "-")[:32]
+            try:
+                await ctx.channel.edit(name=clean_name)
+                await ctx.send(embed=success_embed("Ticket Renamed", f"Channel renamed to `#{clean_name}`."))
+            except Exception as e:
+                await ctx.send(embed=error_embed("Rename Failed", str(e)))
+
+        elif action == "priority":
+            if not target:
+                return await ctx.send(embed=error_embed("Missing Argument", "Usage: `$ticket priority <low|normal|high|urgent>`"))
+            level = target.upper()
+            badge_map = {"LOW": "🟢 LOW", "NORMAL": "🟡 NORMAL", "HIGH": "🟠 HIGH", "URGENT": "🔴 URGENT"}
+            badge = badge_map.get(level, f"⚪ {level}")
+            try:
+                await ctx.channel.edit(topic=f"[{level} PRIORITY] {ctx.channel.topic or ''}"[:1024])
+            except Exception:
+                pass
+            embed = standard_embed(
+                title=f"Priority Updated • {badge}",
+                description=f"Ticket priority was set to **{badge}** by {ctx.author.mention}.",
+                color=0xED4245 if "URGENT" in level else 0xFEE75C
+            )
+            await ctx.send(embed=embed)
+
+        elif action == "alert":
+            settings = await db.get_guild_settings(ctx.guild.id)
+            staff_role_id = settings.get("ticket_staff_role_id")
+            role = ctx.guild.get_role(staff_role_id) if staff_role_id else None
+            mention_str = role.mention if role else "@everyone"
+            embed = standard_embed(
+                title="🚨 Urgent Staff Attention Required!",
+                description=f"{ctx.author.mention} has requested urgent staff assistance in {ctx.channel.mention}!",
+                color=0xED4245
+            )
+            await ctx.send(content=mention_str, embed=embed)
+
+        elif action == "claim":
+            settings = await db.get_guild_settings(ctx.guild.id)
+            staff_role_id = settings.get("ticket_staff_role_id")
+            is_staff = ctx.author.guild_permissions.administrator
+            if staff_role_id:
+                role = ctx.guild.get_role(staff_role_id)
+                if role and role in ctx.author.roles:
+                    is_staff = True
+            if not is_staff:
+                return await ctx.send(embed=error_embed("Access Denied", "Only support staff can claim tickets."))
+            await db.claim_ticket(ctx.channel.id, ctx.author.id)
+            await ctx.send(embed=success_embed("Ticket Claimed", f"🌟 {ctx.author.mention} is now handling this ticket!"))
         else:
             await ctx.send(embed=info_embed(
                 "Ticket Commands",
@@ -632,6 +721,11 @@ class Tickets(commands.Cog):
                 "• `$ticket transcript` - Generate HTML transcript\n"
                 "• `$ticket add @user` - Add user to ticket\n"
                 "• `$ticket remove @user` - Remove user from ticket\n"
+                "• `$ticket stats` - View ticket analytics dashboard\n"
+                "• `$ticket rename <name>` - Rename active ticket channel\n"
+                "• `$ticket priority <low|high|urgent>` - Set ticket priority\n"
+                "• `$ticket alert` - Request urgent staff intervention\n"
+                "• `$ticket claim` - Claim ticket for support staff\n"
                 "• `$createembed` - Build custom embed\n"
                 "• `$invoice <amount> <method>` - Post payment invoice\n"
                 "• `$ticketpanel` - Deploy modular ticket panel\n"
