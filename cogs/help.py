@@ -124,7 +124,7 @@ MODULES = {
             ("`$hi`", "Say hi to Zyath Bot with an interactive response and delete command message."),
             ("`$sayembed <title> | <desc>`", "Make the bot speak in a styled embed and deletes trigger message."),
             ("`$spam <count> @user [msg]`", "Restricted command: deletes trigger, ghost mentions user up to 100x and deletes all spam messages!"),
-            ("`$cancelspam [all]`", "Cancel and stop active ghost spam immediately (Aliases: $stopspam, $stop)."),
+            ("`$cancelspam [all]`", "Cancel and stop active ghost spam immediately (Alias: $stopspam)."),
             ("`$setspamusers @user`", "Authorize a user to execute the restricted `$spam` command."),
             ("`$removespamuser @user`", "Revoke `$spam` command permission for a user."),
             ("`$ping`", "Display all real-time latencies (WebSocket, REST API, Supabase Database, Web Server)."),
@@ -236,7 +236,7 @@ class Help(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.command(name="help", aliases=["commands", "h", "cmds"], help="Display the clean interactive help desk.")
+    @commands.command(name="help", aliases=["h"], help="Display the clean interactive help desk.")
     async def help_cmd(self, ctx: commands.Context, module_name: str = None):
         prefix = ctx.prefix or "$"
 

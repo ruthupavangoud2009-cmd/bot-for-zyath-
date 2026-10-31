@@ -92,7 +92,7 @@ class Shop(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.command(name="shop", aliases=["s", "store"], help="View server shop catalog. E.g. $shop or $s")
+    @commands.command(name="shop", aliases=["store"], help="View server shop catalog. E.g. $shop or $store")
     async def view_shop(self, ctx: commands.Context, category: str = None):
         items = await db.get_shop_items(ctx.guild.id, category)
         categories = await db.get_shop_categories(ctx.guild.id)
@@ -129,7 +129,7 @@ class Shop(commands.Cog):
         view = ShopView(items)
         await ctx.send(embed=embed, view=view)
 
-    @commands.command(name="shopadd", aliases=["sa", "sadd"], help="Add an item to the shop. E.g. $shopadd Nitro 1 Month | $5.00 | Subscriptions | Instant delivery")
+    @commands.command(name="shopadd", help="Add an item to the shop. E.g. $shopadd Nitro 1 Month | $5.00 | Subscriptions | Instant delivery")
     @commands.has_permissions(administrator=True)
     async def shop_add(self, ctx: commands.Context, *, details: str):
         parts = [p.strip() for p in details.split("|")]
@@ -151,7 +151,7 @@ class Shop(commands.Cog):
         )
         await ctx.send(embed=embed)
 
-    @commands.command(name="shopremove", aliases=["shopdel", "sr", "sdel"], help="Remove an item from the shop by ID. E.g. $shopremove 3")
+    @commands.command(name="shopremove", aliases=["shopdel"], help="Remove an item from the shop by ID. E.g. $shopremove 3")
     @commands.has_permissions(administrator=True)
     async def shop_remove(self, ctx: commands.Context, item_id: int):
         removed = await db.remove_shop_item(ctx.guild.id, item_id)
@@ -160,7 +160,7 @@ class Shop(commands.Cog):
         else:
             await ctx.send(embed=error_embed("Item Not Found", f"No item found with ID `#{item_id}`."))
 
-    @commands.command(name="shoplist", aliases=["sl", "slist"], help="Admin overview of all shop items and IDs.")
+    @commands.command(name="shoplist", help="Admin overview of all shop items and IDs.")
     @commands.has_permissions(administrator=True)
     async def shop_list(self, ctx: commands.Context):
         items = await db.get_shop_items(ctx.guild.id)
@@ -177,7 +177,7 @@ class Shop(commands.Cog):
         )
         await ctx.send(embed=embed)
 
-    @commands.command(name="payment", aliases=["pay", "wallets", "pm"], help="View accepted shop payment methods and wallet addresses.")
+    @commands.command(name="payment", aliases=["pay", "wallets"], help="View accepted shop payment methods and wallet addresses.")
     async def view_payment(self, ctx: commands.Context):
         methods = await db.get_payment_methods(ctx.guild.id)
         if not methods:
@@ -201,7 +201,7 @@ class Shop(commands.Cog):
         embed.set_footer(text="Zyath Shop • Verified Payment Gateways")
         await ctx.send(embed=embed)
 
-    @commands.command(name="setpayment", aliases=["sp", "addpay"], help="Add or update a payment method. E.g. $setpayment LTC | ltc1q... | Fast confirmations")
+    @commands.command(name="setpayment", aliases=["addpay"], help="Add or update a payment method. E.g. $setpayment LTC | ltc1q... | Fast confirmations")
     @commands.has_permissions(administrator=True)
     async def set_payment(self, ctx: commands.Context, *, details: str):
         parts = [p.strip() for p in details.split("|")]
@@ -222,7 +222,7 @@ class Shop(commands.Cog):
         )
         await ctx.send(embed=embed)
 
-    @commands.command(name="delpayment", aliases=["removepayment", "dp"], help="Delete a payment method by ID. E.g. $delpayment 2")
+    @commands.command(name="delpayment", aliases=["removepayment"], help="Delete a payment method by ID. E.g. $delpayment 2")
     @commands.has_permissions(administrator=True)
     async def del_payment(self, ctx: commands.Context, method_id: int):
         removed = await db.remove_payment_method(ctx.guild.id, method_id)
@@ -231,7 +231,7 @@ class Shop(commands.Cog):
         else:
             await ctx.send(embed=error_embed("Not Found", f"No payment method found with ID `#{method_id}`."))
 
-    @commands.command(name="tos", aliases=["rules", "terms"], help="View shop Terms of Service, warranty, and refund policy.")
+    @commands.command(name="tos", aliases=["terms"], help="View shop Terms of Service, warranty, and refund policy.")
     async def view_tos(self, ctx: commands.Context):
         tos_text = await db.get_shop_tos(ctx.guild.id)
         if not tos_text:
@@ -250,7 +250,7 @@ class Shop(commands.Cog):
         embed.set_footer(text="By purchasing from our shop, you automatically agree to these terms.")
         await ctx.send(embed=embed)
 
-    @commands.command(name="settos", aliases=["st"], help="Set the shop Terms of Service text.")
+    @commands.command(name="settos", help="Set the shop Terms of Service text.")
     @commands.has_permissions(administrator=True)
     async def set_tos(self, ctx: commands.Context, *, text: str):
         await db.set_shop_tos(ctx.guild.id, text)

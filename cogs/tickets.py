@@ -381,7 +381,7 @@ class Tickets(commands.Cog):
         self.bot.add_view(TicketControlsView())
         self.bot.add_view(TicketClosedControlsView())
 
-    @commands.command(name="createembed", aliases=["embed", "ce", "emb"], help="Open the interactive custom embed creator modal.")
+    @commands.command(name="createembed", aliases=["embed"], help="Open the interactive custom embed creator modal.")
     @commands.has_permissions(manage_messages=True)
     async def create_embed_cmd(self, ctx: commands.Context, channel: discord.TextChannel = None):
         target = channel or ctx.channel
@@ -402,7 +402,7 @@ class Tickets(commands.Cog):
             view=view
         )
 
-    @commands.command(name="invoice", aliases=["inv", "bill"], help="Send a payment invoice inside a ticket. E.g. $invoice $25.00 LTC [Product]")
+    @commands.command(name="invoice", aliases=["bill"], help="Send a payment invoice inside a ticket. E.g. $invoice $25.00 LTC [Product]")
     @commands.has_permissions(manage_messages=True)
     async def send_invoice(self, ctx: commands.Context, amount: str, method: str, *, product: str = "Order Item"):
         embed = standard_embed(
@@ -418,7 +418,7 @@ class Tickets(commands.Cog):
         embed.set_footer(text=f"Issued by {ctx.author.display_name} • Zyath Store")
         await ctx.send(embed=embed)
 
-    @commands.command(name="ticketpanel", aliases=["ticketsetup", "tp"], help="Send the ticket creation panel with categories and buttons.")
+    @commands.command(name="ticketpanel", aliases=["ticketsetup"], help="Send the ticket creation panel with categories and buttons.")
     @commands.has_permissions(administrator=True)
     async def ticket_panel(self, ctx: commands.Context, channel: discord.TextChannel = None):
         channel = channel or ctx.channel
@@ -440,25 +440,25 @@ class Tickets(commands.Cog):
         if channel.id != ctx.channel.id:
             await ctx.send(embed=success_embed("Panel Created", f"Ticket panel deployed in {channel.mention}."))
 
-    @commands.command(name="setticketcategory", aliases=["stcat", "ticketcat"], help="Set the Discord category where tickets are created.")
+    @commands.command(name="setticketcategory", aliases=["ticketcat"], help="Set the Discord category where tickets are created.")
     @commands.has_permissions(administrator=True)
     async def set_ticket_category(self, ctx: commands.Context, category: discord.CategoryChannel):
         await db.update_guild_setting(ctx.guild.id, "ticket_category_id", category.id)
         await ctx.send(embed=success_embed("Ticket Category Configured", f"New tickets will be created under **{category.name}**."))
 
-    @commands.command(name="setticketrole", aliases=["strole", "ticketrole"], help="Set the staff role that has access to tickets.")
+    @commands.command(name="setticketrole", aliases=["ticketrole"], help="Set the staff role that has access to tickets.")
     @commands.has_permissions(administrator=True)
     async def set_ticket_role(self, ctx: commands.Context, role: discord.Role):
         await db.update_guild_setting(ctx.guild.id, "ticket_staff_role_id", role.id)
         await ctx.send(embed=success_embed("Ticket Role Configured", f"Support role set to {role.mention}."))
 
-    @commands.command(name="setticketlogs", aliases=["stlogs", "ticketlogs"], help="Set the channel where ticket transcripts and close logs are sent.")
+    @commands.command(name="setticketlogs", aliases=["ticketlogs"], help="Set the channel where ticket transcripts and close logs are sent.")
     @commands.has_permissions(administrator=True)
     async def set_ticket_logs(self, ctx: commands.Context, channel: discord.TextChannel):
         await db.update_guild_setting(ctx.guild.id, "ticket_logs_channel_id", channel.id)
         await ctx.send(embed=success_embed("Ticket Logs Configured", f"Ticket logs will be saved to {channel.mention}."))
 
-    @commands.command(name="ticket", aliases=["t"], help="Ticket commands: close, add, remove, transcript")
+    @commands.command(name="ticket", help="Ticket commands: close, add, remove, transcript")
     async def ticket_cmd(self, ctx: commands.Context, action: str = "help", *, target: str = None):
         action = action.lower()
         if action == "close":

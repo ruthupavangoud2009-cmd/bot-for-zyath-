@@ -39,7 +39,7 @@ class Fun(commands.Cog):
         # Active ghost spam tracking per channel_id
         self.active_spams = {}
 
-    @commands.command(name="say", aliases=["echo", "botmsg", "speak"], help="Make the bot say something and delete your message. E.g. $say hi")
+    @commands.command(name="say", help="Make the bot say something and delete your message. E.g. $say hi")
     async def say(self, ctx: commands.Context, *, message: str = None):
         # Delete author's trigger message immediately
         try:
@@ -65,7 +65,7 @@ class Fun(commands.Cog):
         else:
             await ctx.send(message)
 
-    @commands.command(name="hi", aliases=["hello", "hey"], help="Say hi to Zyath Bot with a sleek interactive greeting!")
+    @commands.command(name="hi", help="Say hi to Zyath Bot with a sleek interactive greeting!")
     async def hi_command(self, ctx: commands.Context):
         # Delete user's trigger message immediately
         try:
@@ -151,7 +151,7 @@ class Fun(commands.Cog):
         finally:
             self.active_spams.pop(ctx.channel.id, None)
 
-    @commands.command(name="cancelspam", aliases=["stopspam", "spamcancel", "spamstop", "cspam", "stop"], help="Cancel any active ghost spam in this channel.")
+    @commands.command(name="cancelspam", aliases=["stopspam"], help="Cancel any active ghost spam in this channel.")
     async def cancel_spam(self, ctx: commands.Context, scope: str = ""):
         # Delete trigger message immediately
         try:
@@ -309,7 +309,7 @@ class Fun(commands.Cog):
         await msg.add_reaction("👍")
         await msg.add_reaction("👎")
 
-    @commands.command(name="ping", aliases=["latency", "pings", "speed"], help="View real-time latencies across Gateway, REST API, Database, and Web server.")
+    @commands.command(name="ping", aliases=["latency"], help="View real-time latencies across Gateway, REST API, Database, and Web server.")
     async def ping(self, ctx: commands.Context):
         ws_latency = round(self.bot.latency * 1000)
 

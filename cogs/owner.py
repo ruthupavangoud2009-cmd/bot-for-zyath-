@@ -23,7 +23,7 @@ class Owner(commands.Cog):
         self.bot = bot
         self.start_time = datetime.utcnow()
 
-    @commands.command(name="reload", aliases=["rl"], help="Hot reload a cog or all cogs without downtime. E.g. $reload shop or $reload all")
+    @commands.command(name="reload", help="Hot reload a cog or all cogs without downtime. E.g. $reload shop or $reload all")
     @is_bot_owner()
     async def reload_cog(self, ctx: commands.Context, cog_name: str):
         cogs = [
@@ -88,7 +88,7 @@ class Owner(commands.Cog):
         except Exception as e:
             await ctx.send(embed=error_embed("DM Failed", f"Could not message user: {str(e)}"))
 
-    @commands.command(name="botstats", aliases=["diagnostics", "bs", "stats"], help="View hardware, database, and system statistics.")
+    @commands.command(name="botstats", aliases=["stats"], help="View hardware, database, and system statistics.")
     @is_bot_owner()
     async def system_diagnostics(self, ctx: commands.Context):
         uptime = datetime.utcnow() - self.start_time
@@ -177,7 +177,7 @@ class Owner(commands.Cog):
         except Exception as e:
             await msg.edit(content=f"❌ Error syncing commands: {str(e)}")
 
-    @commands.command(name="checkperms", aliases=["perms", "testperms"], help="Check and diagnose bot permissions in this server.")
+    @commands.command(name="checkperms", aliases=["perms"], help="Check and diagnose bot permissions in this server.")
     async def check_perms(self, ctx: commands.Context):
         me = ctx.guild.me
         perms = me.guild_permissions

@@ -118,19 +118,19 @@ class Welcomer(commands.Cog):
                 except Exception:
                     pass
 
-    @commands.command(name="setwelcome", aliases=["sw"], help="Set the channel where visual welcome messages are sent.")
+    @commands.command(name="setwelcome", help="Set the channel where visual welcome messages are sent.")
     @commands.has_permissions(administrator=True)
     async def set_welcome(self, ctx: commands.Context, channel: discord.TextChannel):
         await db.update_guild_setting(ctx.guild.id, "welcome_channel_id", channel.id)
         await ctx.send(embed=success_embed("Welcome Channel Set", f"Welcome messages with custom visual cards will now be posted in {channel.mention}."))
 
-    @commands.command(name="setleave", aliases=["slv", "sleave"], help="Set the channel where member leave logs are sent.")
+    @commands.command(name="setleave", aliases=["sleave"], help="Set the channel where member leave logs are sent.")
     @commands.has_permissions(administrator=True)
     async def set_leave(self, ctx: commands.Context, channel: discord.TextChannel):
         await db.update_guild_setting(ctx.guild.id, "leave_channel_id", channel.id)
         await ctx.send(embed=success_embed("Leave Channel Set", f"Leave notifications will now be posted in {channel.mention}."))
 
-    @commands.command(name="setautorole", aliases=["sar"], help="Set the role given to new members automatically.")
+    @commands.command(name="setautorole", help="Set the role given to new members automatically.")
     @commands.has_permissions(administrator=True)
     async def set_autorole(self, ctx: commands.Context, role: discord.Role):
         if role >= ctx.guild.me.top_role:
@@ -138,13 +138,13 @@ class Welcomer(commands.Cog):
         await db.update_guild_setting(ctx.guild.id, "autorole_id", role.id)
         await ctx.send(embed=success_embed("Auto Role Set", f"New members will automatically receive {role.mention}."))
 
-    @commands.command(name="setwelcomemsg", aliases=["swm"], help="Set custom welcome text. Placeholders: {user.mention}, {server}, {membercount}")
+    @commands.command(name="setwelcomemsg", help="Set custom welcome text. Placeholders: {user.mention}, {server}, {membercount}")
     @commands.has_permissions(administrator=True)
     async def set_welcome_msg(self, ctx: commands.Context, *, message: str):
         await db.update_guild_setting(ctx.guild.id, "welcome_message", message)
         await ctx.send(embed=success_embed("Welcome Message Updated", f"New welcome template:\n>>> {message}"))
 
-    @commands.command(name="welcometest", aliases=["wt"], help="Simulate and test your visual welcome card.")
+    @commands.command(name="welcometest", help="Simulate and test your visual welcome card.")
     @commands.has_permissions(administrator=True)
     async def welcome_test(self, ctx: commands.Context):
         settings = await db.get_guild_settings(ctx.guild.id)

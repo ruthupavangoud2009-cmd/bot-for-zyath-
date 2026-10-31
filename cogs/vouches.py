@@ -27,13 +27,13 @@ class Vouches(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.command(name="setvouchchannel", aliases=["svc"], help="Set the channel where all vouches will be logged.")
+    @commands.command(name="setvouchchannel", help="Set the channel where all vouches will be logged.")
     @commands.has_permissions(administrator=True)
     async def set_vouch_channel(self, ctx: commands.Context, channel: discord.TextChannel):
         await db.update_guild_setting(ctx.guild.id, "vouch_channel_id", channel.id)
         await ctx.send(embed=success_embed("Vouch Channel Configured", f"Vouches will be logged in {channel.mention}."))
 
-    @commands.command(name="vouch", aliases=["v"], help="Vouch for a user. E.g. $vouch @user 5 Fast and legit trader!")
+    @commands.command(name="vouch", help="Vouch for a user. E.g. $vouch @user 5 Fast and legit trader!")
     async def vouch(self, ctx: commands.Context, member: discord.Member, *args):
         if member.id == ctx.author.id:
             return await ctx.send(embed=error_embed("Invalid Target", "You cannot vouch for yourself!"))
@@ -95,7 +95,7 @@ class Vouches(commands.Cog):
         else:
             await ctx.send(embed=embed, view=view)
 
-    @commands.command(name="vouches", aliases=["rep", "reputation", "vs"], help="Check vouches and reputation history for yourself or another user.")
+    @commands.command(name="vouches", aliases=["rep", "reputation"], help="Check vouches and reputation history for yourself or another user.")
     async def view_vouches(self, ctx: commands.Context, member: discord.Member = None):
         member = member or ctx.author
         vouches = await db.get_vouches(ctx.guild.id, member.id)
@@ -121,7 +121,7 @@ class Vouches(commands.Cog):
         embed.set_footer(text=f"Requested by {ctx.author.display_name} • Zyath Vouch System")
         await ctx.send(embed=embed)
 
-    @commands.command(name="vouchleaderboard", aliases=["vouchlb", "vlb", "topvouches"], help="View the ranked top vouched sellers in the server.")
+    @commands.command(name="vouchleaderboard", aliases=["vouchlb", "vlb"], help="View the ranked top vouched sellers in the server.")
     async def vouch_leaderboard(self, ctx: commands.Context):
         lb = await db.get_vouch_leaderboard(ctx.guild.id, limit=10)
         if not lb:
@@ -151,7 +151,7 @@ class Vouches(commands.Cog):
         embed.set_footer(text=f"Server Total: {total_server} Vouches • Avg Rating: {avg_server}/5.0")
         await ctx.send(embed=embed)
 
-    @commands.command(name="vouchinfo", aliases=["vi"], help="View full metadata for a specific vouch by its ID.")
+    @commands.command(name="vouchinfo", help="View full metadata for a specific vouch by its ID.")
     async def vouch_info(self, ctx: commands.Context, vouch_id: int):
         vouch = await db.get_vouch(vouch_id)
         if not vouch:
@@ -170,7 +170,7 @@ class Vouches(commands.Cog):
         )
         await ctx.send(embed=embed)
 
-    @commands.command(name="delvouch", aliases=["vouchdelete", "dv"], help="Remove a vouch by ID.")
+    @commands.command(name="delvouch", aliases=["vouchdelete"], help="Remove a vouch by ID.")
     @commands.has_permissions(manage_messages=True)
     async def delete_vouch(self, ctx: commands.Context, vouch_id: int):
         removed = await db.delete_vouch(ctx.guild.id, vouch_id)
@@ -179,7 +179,7 @@ class Vouches(commands.Cog):
         else:
             await ctx.send(embed=error_embed("Not Found", f"Vouch `#{vouch_id}` was not found in this server."))
 
-    @commands.command(name="vouchstats", aliases=["vstats"], help="View server-wide vouch metrics and averages.")
+    @commands.command(name="vouchstats", help="View server-wide vouch metrics and averages.")
     async def vouch_stats(self, ctx: commands.Context):
         stats = await db.get_server_vouch_stats(ctx.guild.id)
         total = stats.get("total", 0)
