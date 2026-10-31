@@ -98,6 +98,25 @@ class Database:
                 )
             """)
 
+            # Payment methods table
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS payment_methods (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    guild_id INTEGER NOT NULL,
+                    method_name TEXT NOT NULL,
+                    address TEXT NOT NULL,
+                    note TEXT
+                )
+            """)
+
+            # Shop Terms of Service table
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS shop_tos (
+                    guild_id INTEGER PRIMARY KEY,
+                    tos_text TEXT NOT NULL
+                )
+            """)
+
             await db.commit()
 
     # --- Guild Settings ---
@@ -281,5 +300,43 @@ class Database:
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("DELETE FROM tickets WHERE channel_id = ?", (channel_id,))
             await db.commit()
+
+    # --- Payment Methods ---
+    async def add_payment_method(self, guild_id: int, method_name: str, address: str, note: str = "") -> int:
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute("""
+                INSERT INTO payment_methods (guild_id, method_name, address, note)
+                VALUES (?, ?, ?, ?)
+            """, (guild_id, method_name, address, note))
+            await db.commit()
+            return cursor.lastrowid
+
+    async def get_payment_methods(self, guild_id: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute("SELECT * FROM payment_methods WHERE guild_id = ? ORDER BY id ASC", (guild_id,))
+            rows = await cursor.fetchall()
+            return [dict(r) for r in rows]
+
+    async def remove_payment_method(self, guild_id: int, method_id: int) -> bool:
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute("DELETE FROM payment_methods WHERE id = ? AND guild_id = ?", (method_id, guild_id))
+            await db.commit()
+            return cursor.rowcount > 0
+
+    # --- Shop TOS ---
+    async def set_shop_tos(self, guild_id: int, tos_text: str):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("""
+                INSERT INTO shop_tos (guild_id, tos_text) VALUES (?, ?)
+                ON CONFLICT(guild_id) DO UPDATE SET tos_text = ?
+            """, (guild_id, tos_text, tos_text))
+            await db.commit()
+
+    async def get_shop_tos(self, guild_id: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute("SELECT tos_text FROM shop_tos WHERE guild_id = ?", (guild_id,))
+            row = await cursor.fetchone()
+            return row[0] if row else None
 
 db = Database()

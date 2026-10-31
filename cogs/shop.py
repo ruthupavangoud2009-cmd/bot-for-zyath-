@@ -182,5 +182,84 @@ class Shop(commands.Cog):
         )
         await ctx.send(embed=embed)
 
+    @commands.command(name="payment", aliases=["pay", "wallets"], help="View accepted shop payment methods and wallet addresses.")
+    async def view_payment(self, ctx: commands.Context):
+        methods = await db.get_payment_methods(ctx.guild.id)
+        if not methods:
+            return await ctx.send(embed=info_embed(
+                "Payment Methods",
+                "No payment methods currently listed.\n*Admins can add methods using `$setpayment <Name> | <Address> | [Note]`!*"
+            ))
+
+        embed = standard_embed(
+            title=f"💳 {ctx.guild.name} • Accepted Payment Methods",
+            description="Use the addresses below to complete payments. Always double check addresses before sending!\n",
+            color=0x2ECC71
+        )
+        for m in methods:
+            note_str = f"\n*{m['note']}*" if m.get('note') else ""
+            embed.add_field(
+                name=f"🔹 {m['method_name']}",
+                value=f"```{m['address']}```{note_str}",
+                inline=False
+            )
+        embed.set_footer(text="Zyath Shop • Verified Payment Gateways")
+        await ctx.send(embed=embed)
+
+    @commands.command(name="setpayment", help="Add or update a payment method. E.g. $setpayment LTC | ltc1q... | Fast confirmations")
+    @commands.has_permissions(administrator=True)
+    async def set_payment(self, ctx: commands.Context, *, details: str):
+        parts = [p.strip() for p in details.split("|")]
+        if len(parts) < 2:
+            return await ctx.send(embed=error_embed(
+                "Invalid Format",
+                "Format: `$setpayment <Method Name> | <Wallet/Details> | [Note]`\nExample: `$setpayment Litecoin (LTC) | ltc1q9... | 1 confirmation required`"
+            ))
+
+        method_name = parts[0]
+        address = parts[1]
+        note = parts[2] if len(parts) > 2 else ""
+
+        mid = await db.add_payment_method(ctx.guild.id, method_name, address, note)
+        embed = success_embed(
+            "Payment Method Added",
+            f"**ID:** `#{mid}`\n**Method:** `{method_name}`\n**Address:** `{address}`\n**Note:** {note or 'None'}"
+        )
+        await ctx.send(embed=embed)
+
+    @commands.command(name="delpayment", aliases=["removepayment"], help="Delete a payment method by ID. E.g. $delpayment 2")
+    @commands.has_permissions(administrator=True)
+    async def del_payment(self, ctx: commands.Context, method_id: int):
+        removed = await db.remove_payment_method(ctx.guild.id, method_id)
+        if removed:
+            await ctx.send(embed=success_embed("Payment Method Removed", f"Payment method `#{method_id}` was removed."))
+        else:
+            await ctx.send(embed=error_embed("Not Found", f"No payment method found with ID `#{method_id}`."))
+
+    @commands.command(name="tos", aliases=["rules", "terms"], help="View shop Terms of Service, warranty, and refund policy.")
+    async def view_tos(self, ctx: commands.Context):
+        tos_text = await db.get_shop_tos(ctx.guild.id)
+        if not tos_text:
+            tos_text = (
+                "**1. General Terms:**\nAll sales are final once delivered unless specified otherwise.\n\n"
+                "**2. Warranty & Replacements:**\nReplacements are offered if reported within 24 hours with valid proof.\n\n"
+                "**3. Payments:**\nOnly send payments to official addresses listed in `$payment`.\n\n"
+                "**4. Chargebacks:**\nAny unauthorized chargebacks will lead to a permanent ban & scammer report."
+            )
+
+        embed = standard_embed(
+            title=f"📜 {ctx.guild.name} • Terms of Service & Policy",
+            description=tos_text,
+            color=0xFEE75C
+        )
+        embed.set_footer(text="By purchasing from our shop, you automatically agree to these terms.")
+        await ctx.send(embed=embed)
+
+    @commands.command(name="settos", help="Set the shop Terms of Service text.")
+    @commands.has_permissions(administrator=True)
+    async def set_tos(self, ctx: commands.Context, *, text: str):
+        await db.set_shop_tos(ctx.guild.id, text)
+        await ctx.send(embed=success_embed("TOS Updated", "Shop Terms of Service have been successfully updated!"))
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(Shop(bot))

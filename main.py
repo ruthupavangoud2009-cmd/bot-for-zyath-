@@ -42,13 +42,28 @@ async def get_prefix(bot, message):
 # Setup bot intents
 intents = discord.Intents.all()
 
+def get_config_owner_ids():
+    ids = {1521774957065928734, 1505515188991033409}
+    if os.path.exists(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                for oid in data.get("owner_ids", []):
+                    ids.add(int(oid))
+        except Exception:
+            pass
+    return ids
+
+OWNER_IDS = get_config_owner_ids()
+
 class ZyathBot(commands.Bot):
     def __init__(self):
         super().__init__(
             command_prefix=get_prefix,
             intents=intents,
             help_command=None,
-            case_insensitive=True
+            case_insensitive=True,
+            owner_ids=OWNER_IDS
         )
 
     async def setup_hook(self):
@@ -66,7 +81,8 @@ class ZyathBot(commands.Bot):
             "cogs.trades",
             "cogs.shop",
             "cogs.fun",
-            "cogs.help"
+            "cogs.help",
+            "cogs.owner"
         ]
 
         for ext in initial_extensions:

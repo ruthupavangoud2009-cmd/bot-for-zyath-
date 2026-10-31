@@ -85,7 +85,12 @@ MODULES = {
             ("`$shop [category]`", "Browse the server shop with dropdown ordering."),
             ("`$shopadd <name> | <price> | [cat] | [desc]`", "Add a new product or service to the shop."),
             ("`$shopremove <item_id>`", "Delete a product from the shop catalog."),
-            ("`$shoplist`", "Admin inventory overview of all shop items and IDs.")
+            ("`$shoplist`", "Admin inventory overview of all shop items and IDs."),
+            ("`$payment`", "Display accepted payment methods and verified wallet addresses."),
+            ("`$setpayment <name> | <addr> | [note]`", "Configure a payment method or crypto wallet."),
+            ("`$delpayment <id>`", "Remove an existing payment method."),
+            ("`$tos`", "View shop Terms of Service, warranty, and replacement policy."),
+            ("`$settos <text>`", "Set custom shop Terms of Service.")
         ]
     },
     "welcomer": {

@@ -1,14 +1,18 @@
 {
   "prefix": "$",
   "bot_name": "Zyath Bot",
+  "owner_ids": [
+    "1521774957065928734",
+    "1505515188991033409"
+  ],
   "embed_color": 5793266,
   "success_color": 5763719,
   "error_color": 15548997,
   "warning_color": 16705372,
   "info_color": 3447003,
   "allowed_spam_users": [
-    "REPLACE_WITH_USER_ID_1",
-    "REPLACE_WITH_USER_ID_2"
+    "1521774957065928734",
+    "1505515188991033409"
   ],
   "default_channels": {
     "vouch_channel_id": null,

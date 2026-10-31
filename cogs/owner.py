@@ -1,0 +1,125 @@
+import discord
+from discord.ext import commands
+import os
+import psutil
+from datetime import datetime
+from utils.embeds import standard_embed, success_embed, error_embed, info_embed
+from utils.database import db
+
+OWNER_IDS = {1521774957065928734, 1505515188991033409}
+
+def is_bot_owner():
+    async def predicate(ctx: commands.Context):
+        if ctx.author.id in OWNER_IDS or await ctx.bot.is_owner(ctx.author):
+            return True
+        await ctx.send(embed=error_embed("Access Denied", "⛔ This command is restricted to the bot owners only."))
+        return False
+    return commands.check(predicate)
+
+class Owner(commands.Cog):
+    """Exclusive command suite for the 2 bot owners."""
+
+    def __init__(self, bot: commands.Bot):
+        self.bot = bot
+        self.start_time = datetime.utcnow()
+
+    @commands.command(name="reload", help="Hot reload a cog or all cogs without downtime. E.g. $reload shop or $reload all")
+    @is_bot_owner()
+    async def reload_cog(self, ctx: commands.Context, cog_name: str):
+        cogs = [
+            "moderation", "tickets", "welcomer", "gtn", "vouches",
+            "trades", "shop", "fun", "help", "owner"
+        ]
+        
+        target = cog_name.lower().replace("cogs.", "").strip()
+
+        if target == "all":
+            reloaded = []
+            failed = []
+            for c in cogs:
+                try:
+                    await self.bot.reload_extension(f"cogs.{c}")
+                    reloaded.append(c)
+                except Exception as e:
+                    failed.append(f"{c}: {str(e)}")
+
+            desc = f"✅ **Reloaded ({len(reloaded)}):** {', '.join(reloaded)}\n"
+            if failed:
+                desc += f"❌ **Failed ({len(failed)}):**\n" + "\n".join(failed)
+            return await ctx.send(embed=info_embed("Extensions Reloaded", desc))
+
+        full_name = f"cogs.{target}"
+        try:
+            await self.bot.reload_extension(full_name)
+            await ctx.send(embed=success_embed("Extension Reloaded", f"Successfully reloaded `{full_name}`!"))
+        except Exception as e:
+            await ctx.send(embed=error_embed("Reload Error", f"Failed to reload `{full_name}`:\n```{str(e)}```"))
+
+    @commands.command(name="announce", help="Broadcast an official embed announcement to a channel.")
+    @is_bot_owner()
+    async def announce(self, ctx: commands.Context, channel: discord.TextChannel, *, message: str):
+        if "|" in message:
+            parts = message.split("|", 1)
+            title = parts[0].strip()
+            desc = parts[1].strip()
+        else:
+            title = f"📢 Official Announcement • {ctx.guild.name}"
+            desc = message.strip()
+
+        embed = standard_embed(title=title, description=desc, color=0x5865F2)
+        if ctx.guild.icon:
+            embed.set_thumbnail(url=ctx.guild.icon.url)
+        embed.set_footer(text=f"Sent by {ctx.author.display_name} • Zyath Management")
+
+        await channel.send(embed=embed)
+        await ctx.send(embed=success_embed("Announcement Sent", f"Broadcast posted in {channel.mention}."))
+
+    @commands.command(name="dm", help="Send a direct message to a user as the bot.")
+    @is_bot_owner()
+    async def direct_message(self, ctx: commands.Context, member: discord.Member, *, text: str):
+        try:
+            embed = standard_embed(
+                title=f"Message from {ctx.guild.name} Management",
+                description=text,
+                color=0x5865F2
+            )
+            await member.send(embed=embed)
+            await ctx.send(embed=success_embed("DM Delivered", f"Successfully sent message to {member.mention}."))
+        except Exception as e:
+            await ctx.send(embed=error_embed("DM Failed", f"Could not message user: {str(e)}"))
+
+    @commands.command(name="botstats", aliases=["diagnostics"], help="View hardware, database, and system statistics.")
+    @is_bot_owner()
+    async def system_diagnostics(self, ctx: commands.Context):
+        uptime = datetime.utcnow() - self.start_time
+        hours, remainder = divmod(int(uptime.total_seconds()), 3600)
+        minutes, seconds = divmod(remainder, 60)
+        uptime_str = f"{hours}h {minutes}m {seconds}s"
+
+        # Memory usage
+        process = psutil.Process(os.getpid())
+        ram_mb = round(process.memory_info().rss / 1024 / 1024, 2)
+
+        # Database counts
+        settings = await db.get_guild_settings(ctx.guild.id)
+        vouches = await db.get_vouches(ctx.guild.id, ctx.author.id)
+        shop_items = await db.get_shop_items(ctx.guild.id)
+
+        embed = standard_embed(
+            title="⚙️ Zyath Bot • Master Diagnostics",
+            description="System performance and database diagnostics.",
+            color=0x3447003
+        )
+        embed.add_field(name="👑 Bot Owners", value="<@1521774957065928734>\n<@1505515188991033409>", inline=True)
+        embed.add_field(name="⏱️ Uptime", value=uptime_str, inline=True)
+        embed.add_field(name="📶 WebSocket Latency", value=f"{round(self.bot.latency * 1000)}ms", inline=True)
+        embed.add_field(name="💾 RAM Usage", value=f"{ram_mb} MB", inline=True)
+        embed.add_field(name="🌐 Guilds", value=str(len(self.bot.guilds)), inline=True)
+        embed.add_field(name="👥 Total Members", value=f"{sum(g.member_count for g in self.bot.guilds):,}", inline=True)
+        embed.add_field(name="🛒 Shop Items (Server)", value=str(len(shop_items)), inline=True)
+        embed.add_field(name="🗄️ Database", value="`zyath_bot.db` (SQLite3 / aiosqlite)", inline=True)
+
+        await ctx.send(embed=embed)
+
+async def setup(bot: commands.Bot):
+    await bot.add_cog(Owner(bot))
