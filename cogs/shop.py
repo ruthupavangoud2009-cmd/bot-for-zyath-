@@ -81,6 +81,130 @@ class ShopItemSelect(discord.ui.Select):
         )
         await order_channel.send(content=pings, embed=order_embed, view=TicketControlsView())
 
+class AddPaymentModal(discord.ui.Modal, title="Add Payment Gateway"):
+    method_name = discord.ui.TextInput(
+        label="Method Name",
+        placeholder="e.g. Litecoin (LTC), PayPal, CashApp",
+        required=True
+    )
+    address = discord.ui.TextInput(
+        label="Wallet Address / Payment Info",
+        placeholder="e.g. ltc1q9k9... or billing@paypal.com",
+        required=True
+    )
+    note = discord.ui.TextInput(
+        label="Note / Memo (Optional)",
+        placeholder="e.g. 1 confirmation required, F&F only",
+        required=False
+    )
+
+    def __init__(self, guild_id: int):
+        super().__init__()
+        self.guild_id = guild_id
+
+    async def on_submit(self, interaction: discord.Interaction):
+        mid = await db.add_payment_method(
+            self.guild_id,
+            self.method_name.value.strip(),
+            self.address.value.strip(),
+            self.note.value.strip() if self.note.value else ""
+        )
+        embed = success_embed(
+            "Payment Gateway Added",
+            f"**ID:** `#{mid}`\n"
+            f"**Method:** `{self.method_name.value.strip()}`\n"
+            f"**Address:** `{self.address.value.strip()}`\n"
+            f"**Note:** {self.note.value.strip() or 'None'}\n\n"
+            f"Run `$payment` to view your updated payment gateways."
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+class PaymentDeleteSelect(discord.ui.Select):
+    def __init__(self, methods: list, guild_id: int):
+        self.guild_id = guild_id
+        options = []
+        for m in methods[:25]:
+            note = f" | {m['note']}" if m.get('note') else ""
+            desc = (f"{m['address'][:40]}..." if len(m['address']) > 40 else m['address']) + note
+            options.append(discord.SelectOption(
+                label=f"#{m['id']} • {m['method_name'][:25]}",
+                description=desc[:100],
+                value=str(m['id']),
+                emoji="🗑️"
+            ))
+        super().__init__(
+            placeholder="🗑️ Select a payment method to delete...",
+            min_values=1,
+            max_values=1,
+            options=options
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message(embed=error_embed("Unauthorized", "Only administrators can remove payment methods."), ephemeral=True)
+
+        target_id = int(self.values[0])
+        removed = await db.remove_payment_method(self.guild_id, target_id)
+        if removed:
+            await interaction.response.send_message(
+                embed=success_embed("Payment Method Removed", f"Successfully deleted payment method `#{target_id}` from the shop."),
+                ephemeral=True
+            )
+            try:
+                methods_left = await db.get_payment_methods(self.guild_id)
+                if methods_left:
+                    new_desc = (
+                        "> Choose a payment method from the dropdown below to remove it immediately,\n"
+                        "> or run `$delpayment <ID or Name>` directly.\n\n"
+                        "**Remaining Methods in Shop:**\n" +
+                        "\n".join([f"• **#{m['id']}** — `{m['method_name']}` (`{m['address'][:25]}...`)" for m in methods_left])
+                    )
+                    new_embed = standard_embed(title="🗑️ Select Payment Method to Remove", description=new_desc, color=0xED4245)
+                    await interaction.message.edit(embed=new_embed, view=PaymentDeleteView(methods_left, self.guild_id))
+                else:
+                    await interaction.message.edit(embed=info_embed("Payment Methods", "All payment methods have been removed."), view=None)
+            except Exception:
+                pass
+        else:
+            await interaction.response.send_message(embed=error_embed("Not Found", "That payment method was already deleted."), ephemeral=True)
+
+class PaymentDeleteView(discord.ui.View):
+    def __init__(self, methods: list, guild_id: int):
+        super().__init__(timeout=180)
+        self.add_item(PaymentDeleteSelect(methods, guild_id))
+
+class PaymentAdminControlsView(discord.ui.View):
+    def __init__(self, methods: list, guild_id: int):
+        super().__init__(timeout=180)
+        self.methods = methods
+        self.guild_id = guild_id
+
+    @discord.ui.button(label="Add Payment Method", style=discord.ButtonStyle.success, emoji="➕")
+    async def add_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("Only Administrators can add payment methods.", ephemeral=True)
+        await interaction.response.send_modal(AddPaymentModal(self.guild_id))
+
+    @discord.ui.button(label="Delete Payment Method", style=discord.ButtonStyle.danger, emoji="🗑️")
+    async def del_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("Only Administrators can delete payment methods.", ephemeral=True)
+        curr_methods = await db.get_payment_methods(self.guild_id)
+        if not curr_methods:
+            return await interaction.response.send_message(embed=info_embed("No Payment Methods", "No payment methods configured yet."), ephemeral=True)
+        view = PaymentDeleteView(curr_methods, self.guild_id)
+        embed = standard_embed(
+            title="🗑️ Select Payment Method to Delete",
+            description=(
+                "> Choose a payment method from the dropdown below to delete it from the storefront,\n"
+                "> or run `$delpayment <ID or Name>` directly.\n\n"
+                "**Active Methods:**\n" +
+                "\n".join([f"• **#{m['id']}** — `{m['method_name']}`" for m in curr_methods])
+            ),
+            color=0xED4245
+        )
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
 class ShopQuickButtons(discord.ui.View):
     def __init__(self, guild_id: int):
         super().__init__(timeout=180)
@@ -88,18 +212,24 @@ class ShopQuickButtons(discord.ui.View):
 
     @discord.ui.button(label="Payment Methods", style=discord.ButtonStyle.secondary, emoji="💳")
     async def pay_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        methods = await db.get_payment_methods(self.guild_id)
+        target_gid = self.guild_id or interaction.guild_id
+        methods = await db.get_payment_methods(target_gid)
         if not methods:
-            return await interaction.response.send_message(embed=info_embed("Payment Gateways", "No payment methods configured yet."), ephemeral=True)
+            return await interaction.response.send_message(embed=info_embed("Payment Gateways", "No payment methods configured yet.\n*Admins can add methods using `$setpayment`.*"), ephemeral=True)
         embed = standard_embed(
             title=f"💳 {interaction.guild.name} • Official Payment Gateways",
-            description="> Send funds only to the verified addresses below. Confirm tx ID in ticket.\n",
+            description=(
+                "> Send funds only to the verified addresses below. Confirm tx ID in ticket.\n\n"
+                "💡 **Admin Quick Guide:**\n"
+                "• **Add:** `$setpayment <Name> | <Address> | [Note]`\n"
+                "• **Delete:** `$delpayment <ID or Name>` (e.g. `$delpayment 1` or `$delpayment LTC`)\n"
+            ),
             color=0x2ECC71
         )
         for m in methods:
             note_str = f"\n└ ℹ️ *{m['note']}*" if m.get('note') else ""
             embed.add_field(
-                name=f"🔹 {m['method_name']}",
+                name=f"💳 #{m['id']} • {m['method_name']}",
                 value=f"```{m['address']}```{note_str}",
                 inline=False
             )
@@ -108,7 +238,8 @@ class ShopQuickButtons(discord.ui.View):
 
     @discord.ui.button(label="Terms of Service", style=discord.ButtonStyle.secondary, emoji="📜")
     async def tos_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        tos_text = await db.get_shop_tos(self.guild_id)
+        target_gid = self.guild_id or interaction.guild_id
+        tos_text = await db.get_shop_tos(target_gid)
         if not tos_text:
             tos_text = (
                 "**1. General Policy:** All sales are final once delivered unless specified otherwise.\n"
@@ -126,7 +257,8 @@ class ShopQuickButtons(discord.ui.View):
 
     @discord.ui.button(label="Reputation & Vouches", style=discord.ButtonStyle.secondary, emoji="⭐")
     async def vouch_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        stats = await db.get_server_vouch_stats(self.guild_id)
+        target_gid = self.guild_id or interaction.guild_id
+        stats = await db.get_server_vouch_stats(target_gid)
         total = stats.get("total", 0)
         avg = stats.get("avg_rating", 0.0)
         embed = standard_embed(
@@ -142,29 +274,37 @@ class ShopQuickButtons(discord.ui.View):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 class ShopView(discord.ui.View):
-    def __init__(self, items: list, guild_id: int):
+    def __init__(self, items: list, guild_id: int = None):
         super().__init__(timeout=180)
-        self.guild_id = guild_id
+        self.guild_id = guild_id or (items[0].get("guild_id") if (items and isinstance(items[0], dict)) else None)
         if items:
             self.add_item(ShopItemSelect(items))
 
     @discord.ui.button(label="Payment Methods", style=discord.ButtonStyle.secondary, emoji="💳", row=1)
     async def pay_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        methods = await db.get_payment_methods(self.guild_id)
+        target_gid = self.guild_id or interaction.guild_id
+        methods = await db.get_payment_methods(target_gid)
         if not methods:
-            return await interaction.response.send_message(embed=info_embed("Payment Gateways", "No payment methods configured yet."), ephemeral=True)
+            return await interaction.response.send_message(embed=info_embed("Payment Gateways", "No payment methods configured yet.\n*Admins can add methods using `$setpayment`.*"), ephemeral=True)
         embed = standard_embed(
             title=f"💳 {interaction.guild.name} • Official Payment Gateways",
-            description="> Send funds only to the verified addresses below. Confirm transaction in ticket.\n",
+            description=(
+                "> Send funds only to the verified addresses below. Confirm transaction in ticket.\n\n"
+                "💡 **Admin Quick Guide:**\n"
+                "• **Add:** `$setpayment <Name> | <Address> | [Note]`\n"
+                "• **Delete:** `$delpayment <ID or Name>` (e.g. `$delpayment 1` or `$delpayment LTC`)\n"
+            ),
             color=0x2ECC71
         )
         for m in methods:
             note_str = f"\n└ ℹ️ *{m['note']}*" if m.get('note') else ""
             embed.add_field(
-                name=f"🔹 {m['method_name']}",
+                name=f"💳 #{m['id']} • {m['method_name']}",
                 value=f"```{m['address']}```{note_str}",
                 inline=False
             )
+        embed.set_footer(text="Zyath Financial Security • Verified Addresses")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         embed.set_footer(text="Zyath Financial Security • Verified Addresses")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -306,35 +446,63 @@ class Shop(commands.Cog):
         )
         await ctx.send(embed=embed)
 
-    @commands.command(name="payment", aliases=["pay", "wallets"], help="View accepted shop payment methods and wallet addresses.")
+    @commands.command(name="payment", aliases=["pay", "wallets", "payments"], help="View accepted shop payment methods and wallet addresses.")
     async def view_payment(self, ctx: commands.Context):
         methods = await db.get_payment_methods(ctx.guild.id)
         if not methods:
-            return await ctx.send(embed=info_embed(
-                "Payment Methods",
-                "No payment methods currently listed.\n*Admins can add methods using `$setpayment <Name> | <Address> | [Note]`!*"
-            ))
+            embed = info_embed(
+                "Payment Gateways",
+                "No payment methods currently listed in this server.\n\n"
+                "💡 **Admin Quick Setup:**\n"
+                "• Add a method: `$setpayment <Method Name> | <Wallet/Address> | [Note]`\n"
+                "• *Example:* `$setpayment Litecoin (LTC) | ltc1q9... | 1 confirmation required`"
+            )
+            if ctx.author.guild_permissions.administrator:
+                view = PaymentAdminControlsView([], ctx.guild.id)
+                return await ctx.send(embed=embed, view=view)
+            return await ctx.send(embed=embed)
 
         embed = standard_embed(
-            title=f"💳 {ctx.guild.name} • Accepted Payment Methods",
-            description="Use the addresses below to complete payments. Always double check addresses before sending!\n",
+            title=f"💳 {ctx.guild.name} • Official Payment Gateways",
+            description=(
+                "> Send funds only to the verified addresses below. Confirm transaction ID in ticket.\n\n"
+                "💡 **Admin Controls:**\n"
+                "• **Add:** `$setpayment <Name> | <Address> | [Note]`\n"
+                "• **Delete:** `$delpayment <ID or Name>` (e.g. `$delpayment 1` or `$delpayment LTC`)\n"
+            ),
             color=0x2ECC71
         )
         for m in methods:
-            note_str = f"\n*{m['note']}*" if m.get('note') else ""
+            note_str = f"\n└ ℹ️ *{m['note']}*" if m.get('note') else ""
             embed.add_field(
-                name=f"🔹 {m['method_name']}",
+                name=f"🔹 #{m['id']} • {m['method_name']}",
                 value=f"```{m['address']}```{note_str}",
                 inline=False
             )
-        embed.set_footer(text="Zyath Shop • Verified Payment Gateways")
-        await ctx.send(embed=embed)
+        embed.set_footer(text="Zyath Financial Security • Verified Addresses")
+
+        if ctx.author.guild_permissions.administrator:
+            view = PaymentAdminControlsView(methods, ctx.guild.id)
+            await ctx.send(embed=embed, view=view)
+        else:
+            await ctx.send(embed=embed)
 
     @commands.command(name="setpayment", aliases=["addpay"], help="Add or update a payment method. E.g. $setpayment LTC | ltc1q... | Fast confirmations")
     @commands.has_permissions(administrator=True)
-    async def set_payment(self, ctx: commands.Context, *, details: str):
+    async def set_payment(self, ctx: commands.Context, *, details: str = None):
+        if not details or "|" not in details:
+            return await ctx.send(embed=error_embed(
+                "Invalid Format",
+                "**Usage:** `$setpayment <Method Name> | <Wallet/Details> | [Note]`\n\n"
+                "**Examples:**\n"
+                "• `$setpayment Litecoin (LTC) | ltc1q9... | 1 confirmation required`\n"
+                "• `$setpayment PayPal | billing@zyath.store | Friends & Family only`\n"
+                "• `$setpayment CashApp | $ZyathStore | Instant verification`\n\n"
+                "*Tip: You can also click the `➕ Add Payment Method` button on `$payment`!*"
+            ))
+
         parts = [p.strip() for p in details.split("|")]
-        if len(parts) < 2:
+        if len(parts) < 2 or not parts[0] or not parts[1]:
             return await ctx.send(embed=error_embed(
                 "Invalid Format",
                 "Format: `$setpayment <Method Name> | <Wallet/Details> | [Note]`\nExample: `$setpayment Litecoin (LTC) | ltc1q9... | 1 confirmation required`"
@@ -347,18 +515,83 @@ class Shop(commands.Cog):
         mid = await db.add_payment_method(ctx.guild.id, method_name, address, note)
         embed = success_embed(
             "Payment Method Added",
-            f"**ID:** `#{mid}`\n**Method:** `{method_name}`\n**Address:** `{address}`\n**Note:** {note or 'None'}"
+            f"✅ **#{mid} • {method_name}** has been added to the storefront!\n\n"
+            f"• **ID:** `#{mid}`\n"
+            f"• **Address:** `{address}`\n"
+            f"• **Note:** {note or 'None'}\n\n"
+            f"💡 *To remove this method later, run:* `$delpayment {mid}` or `$delpayment {method_name.split()[0]}`"
         )
         await ctx.send(embed=embed)
 
-    @commands.command(name="delpayment", aliases=["removepayment"], help="Delete a payment method by ID. E.g. $delpayment 2")
+    @commands.command(name="delpayment", aliases=["removepayment", "delpay", "deletepayment"], help="Delete a payment method by ID or Name. E.g. $delpayment 2 or $delpayment LTC")
     @commands.has_permissions(administrator=True)
-    async def del_payment(self, ctx: commands.Context, method_id: int):
-        removed = await db.remove_payment_method(ctx.guild.id, method_id)
-        if removed:
-            await ctx.send(embed=success_embed("Payment Method Removed", f"Payment method `#{method_id}` was removed."))
+    async def del_payment(self, ctx: commands.Context, *, query: str = None):
+        methods = await db.get_payment_methods(ctx.guild.id)
+        if not methods:
+            return await ctx.send(embed=info_embed(
+                "Payment Gateways",
+                "No payment methods are currently configured in this server.\n"
+                "Use `$setpayment <Name> | <Address> | [Note]` to add one!"
+            ))
+
+        # If user didn't specify query, present an interactive dropdown + list of methods!
+        if not query or not query.strip():
+            desc = (
+                "> **Select a payment method from the dropdown below to delete it immediately,**\n"
+                "> or type `$delpayment <ID or Name>` directly.\n\n"
+                "**Active Payment Methods in Shop:**\n"
+            )
+            for m in methods:
+                desc += f"• **#{m['id']}** — `{m['method_name']}` (`{m['address'][:30]}...`)\n"
+
+            embed = standard_embed(
+                title="🗑️ Remove Payment Gateway",
+                description=desc,
+                color=0xED4245
+            )
+            embed.set_footer(text="Select from dropdown below to delete immediately")
+            view = PaymentDeleteView(methods, ctx.guild.id)
+            return await ctx.send(embed=embed, view=view)
+
+        query = query.strip()
+        target_id = None
+        target_name = None
+
+        if query.isdigit():
+            target_id = int(query)
+            match = next((m for m in methods if m['id'] == target_id), None)
+            if match:
+                target_name = match['method_name']
         else:
-            await ctx.send(embed=error_embed("Not Found", f"No payment method found with ID `#{method_id}`."))
+            # Case-insensitive search by method name or address
+            matches = [m for m in methods if query.lower() in m['method_name'].lower() or query.lower() in m['address'].lower()]
+            if len(matches) == 1:
+                target_id = matches[0]['id']
+                target_name = matches[0]['method_name']
+            elif len(matches) > 1:
+                options_str = "\n".join([f"• **#{m['id']}** • `{m['method_name']}`" for m in matches])
+                return await ctx.send(embed=warning_embed(
+                    "Multiple Payment Methods Match",
+                    f"Multiple methods match `{query}`. Please specify the exact ID:\n\n{options_str}\n\n*Example:* `$delpayment {matches[0]['id']}`"
+                ))
+
+        if target_id is not None:
+            removed = await db.remove_payment_method(ctx.guild.id, target_id)
+            if removed:
+                name_display = f"**#{target_id} • {target_name}**" if target_name else f"`#{target_id}`"
+                return await ctx.send(embed=success_embed(
+                    "Payment Method Removed",
+                    f"Successfully deleted {name_display} from the storefront.\nRun `$payment` to inspect your updated gateways."
+                ))
+
+        # Not found
+        avail_str = "\n".join([f"• **#{m['id']}** • `{m['method_name']}`" for m in methods])
+        await ctx.send(embed=error_embed(
+            "Payment Method Not Found",
+            f"No payment method matched `{query}`.\n\n"
+            f"**Currently Active Methods:**\n{avail_str}\n\n"
+            f"💡 *Tip:* Run `$delpayment {methods[0]['id']}` or just `$delpayment` to select from an interactive dropdown!"
+        ))
 
     @commands.command(name="tos", aliases=["terms"], help="View shop Terms of Service, warranty, and refund policy.")
     async def view_tos(self, ctx: commands.Context):

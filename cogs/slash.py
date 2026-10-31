@@ -60,7 +60,7 @@ class SlashCommands(commands.Cog):
         embed = standard_embed(title=f"💳 {interaction.guild.name} Payment Gateways", color=0x2ECC71)
         for m in methods:
             note_str = f"\n*{m['note']}*" if m.get("note") else ""
-            embed.add_field(name=f"🔹 {m['method_name']}", value=f"```{m['address']}```{note_str}", inline=False)
+            embed.add_field(name=f"💳 #{m['id']} • {m['method_name']}", value=f"```{m['address']}```{note_str}", inline=False)
         await interaction.response.send_message(embed=embed)
 
     # 4. /tos

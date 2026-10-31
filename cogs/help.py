@@ -45,7 +45,15 @@ MODULES = {
             ("`$setticketlogs <#channel>`", "Set transcript and ticket audit archive channel."),
             ("`$createembed [#channel]`", "Open interactive custom embed creator modal."),
             ("`$invoice <amount> <method> [product]`", "Send official order payment invoice inside a ticket."),
-            ("`$ticket <close|transcript|add|remove>`", "Quick ticket actions inside an active channel.")
+            ("`$ticket close`", "Close the current active ticket channel."),
+            ("`$ticket transcript`", "Generate and save a complete HTML and text transcript."),
+            ("`$ticket add @user`", "Add a member to the current ticket."),
+            ("`$ticket remove @user`", "Remove a member from the current ticket."),
+            ("`$ticket claim`", "Claim ticket as assigned staff handler."),
+            ("`$ticket priority <low|med|high|urgent>`", "Set ticket priority level."),
+            ("`$ticket rename <new-name>`", "Rename the current ticket channel."),
+            ("`$ticket alert [message]`", "Ping ticket creator with a high-priority alert notification."),
+            ("`$ticket stats`", "View server ticket resolution metrics.")
         ]
     },
     "vouches": {
@@ -54,9 +62,9 @@ MODULES = {
         "emoji": "⭐",
         "color": 0xFEE75C,
         "commands": [
-            ("`$vouch @user [1-5 stars] <comment>`", "Submit a reputation vouch for a trader/member."),
-            ("`$vouches [@user]`", "View total vouches, star rating, and recent feedback for a user."),
-            ("`$vouchlb` / `$vlb`", "View the top vouched members leaderboard in the server."),
+            ("`$vouch @user [1-5 stars] <comment>`", "Submit a verified reputation vouch for a trader/member."),
+            ("`$vouches [@user]` / `$rep`", "View total vouches, star rating, and recent feedback for a user."),
+            ("`$vouchlb` / `$vlb`", "View the ranked top vouched members leaderboard in the server."),
             ("`$vouchinfo <vouch_id>`", "View full metadata for a specific vouch."),
             ("`$delvouch <vouch_id>`", "Staff command to delete a false or inappropriate vouch."),
             ("`$vouchstats`", "View server-wide vouch metrics and averages."),
@@ -65,20 +73,20 @@ MODULES = {
         ]
     },
     "shop": {
-        "title": "🛒 Storefront & Orders",
-        "description": "Product catalog with 1-click ticket order creation.",
+        "title": "🛒 Storefront & Payment Management",
+        "description": "Product catalog with 1-click ticket order creation and payment gateways.",
         "emoji": "🛒",
         "color": 0x2ECC71,
         "commands": [
-            ("`$shop [category]`", "Browse the server shop with dropdown ordering."),
+            ("`$shop [category]`", "Browse the server shop with dropdown ordering and quick links."),
             ("`$shopadd <name> | <price> | [cat] | [desc]`", "Add a new product or service to the shop."),
-            ("`$shopremove <item_id>`", "Delete a product from the shop catalog."),
+            ("`$shopremove <item_id>` / `$shopdel`", "Delete a product from the shop catalog by ID."),
             ("`$shoplist`", "Admin inventory overview of all shop items and IDs."),
-            ("`$payment`", "Display accepted payment methods and verified wallet addresses."),
-            ("`$setpayment <name> | <addr> | [note]`", "Configure a payment method or crypto wallet."),
-            ("`$delpayment <id>`", "Remove an existing payment method."),
+            ("`$payment` / `$wallets` / `$pay`", "Display accepted payment methods and verified wallet addresses."),
+            ("`$setpayment <name> | <addr> | [note]`", "Add a payment method (e.g. `$setpayment LTC | ltc1q... | Fast`)."),
+            ("`$delpayment [ID or Name]`", "Delete a payment method by ID (e.g. `$delpayment 1`) or Name (`$delpayment LTC`), or run without args for an interactive dropdown!"),
             ("`$restock [#channel] [@everyone] <Item> | <Price> | [Details]`", "Broadcast restock alert with 1-click buy button."),
-            ("`$tos`", "View shop Terms of Service, warranty, and replacement policy."),
+            ("`$tos` / `$terms`", "View shop Terms of Service, warranty, and replacement policy."),
             ("`$settos <text>`", "Set custom shop Terms of Service.")
         ]
     },
@@ -88,11 +96,11 @@ MODULES = {
         "emoji": "🤖",
         "color": 0x5865F2,
         "commands": [
-            ("`$ai <question>`", "Ask the AI Shop Assistant any question directly."),
+            ("`$ai <question>` / `$ask`", "Ask the AI Shop Assistant any question directly."),
             ("`$stock` / `$inventory`", "View real-time live stock counts of all products."),
             ("`$airestock <Item> [list/.txt]`", "AI stock scanner: feed raw accounts/keys or attach file to auto-count and import stock."),
             ("`$clearstock <Item>`", "Purge stock records for a specific product."),
-            ("`$aimanager <on|off>`", "Toggle automated AI offline ticket assistance."),
+            ("`$aimanager <on|off>` / `$aitoggle`", "Toggle automated AI offline ticket assistance."),
             ("`$aisettings`", "View current AI Assistant configuration and stock metrics."),
             ("`$aisetprompt <text>`", "Set custom personality or store instructions for the AI.")
         ]
@@ -126,7 +134,7 @@ MODULES = {
         "emoji": "👋",
         "color": 0x9B59B6,
         "commands": [
-            ("`$setwelcome #channel`", "Set the channel for welcome embeds."),
+            ("`$setwelcome #channel`", "Set the channel for welcome embeds with custom PIL cards."),
             ("`$setleave #channel`", "Set the channel for member leave logs."),
             ("`$setautorole @role`", "Set the role automatically assigned to joining members."),
             ("`$setwelcomemsg <text>`", "Set custom welcome message (Supports `{user.mention}`, `{server}`, `{membercount}`)."),
@@ -139,21 +147,21 @@ MODULES = {
         "emoji": "🎉",
         "color": 0xE91E63,
         "commands": [
-            ("`$say <message>`", "Make the bot say something and automatically deletes your trigger message."),
-            ("`$hi`", "Say hi to Zyath Bot with an interactive response and delete command message."),
-            ("`$sayembed <title> | <desc>`", "Make the bot speak in a styled embed and deletes trigger message."),
-            ("`$spam <count> @user [msg]`", "Restricted command: deletes trigger, ghost mentions user up to 100x and deletes all spam messages!"),
-            ("`$cancelspam [all]`", "Cancel and stop active ghost spam immediately (Alias: $stopspam)."),
+            ("`$say <message>`", "Make the bot say something and automatically delete your message."),
+            ("`$hi`", "Say hi to Zyath Bot with an interactive response and quick buttons."),
+            ("`$sayembed <title> | <desc>`", "Make the bot speak in a styled embed and delete trigger message."),
+            ("`$spam <count> @user [msg]`", "Restricted command: deletes trigger, ghost mentions user up to 100x and cleans up!"),
+            ("`$cancelspam [all]` / `$stopspam`", "Cancel and stop active ghost spam immediately."),
             ("`$setspamusers @user`", "Authorize a user to execute the restricted `$spam` command."),
             ("`$removespamuser @user`", "Revoke `$spam` command permission for a user."),
-            ("`$ping`", "Display all real-time latencies (WebSocket, REST API, Supabase Database, Web Server)."),
+            ("`$ping` / `$latency`", "Display real-time latencies (WebSocket, REST API, Database, 24/7 Web Server)."),
             ("`$8ball <question>`", "Ask the magic fortune 8-ball."),
             ("`$coinflip`", "Flip a coin (Heads or Tails)."),
             ("`$roll [max]`", "Roll a random number dice."),
             ("`$roast [@user]`", "Playfully roast a member."),
-            ("`$avatar [@user]`", "Display full-resolution avatar of a user."),
-            ("`$userinfo [@user]`", "Display detailed Discord profile data for a member."),
-            ("`$serverinfo`", "Display server stats, member count, boost level, and info."),
+            ("`$avatar [@user]` / `$av` / `$pfp`", "Display full-resolution avatar of a user."),
+            ("`$userinfo [@user]` / `$whois` / `$ui`", "Display detailed Discord profile dossier for a member."),
+            ("`$serverinfo` / `$si`", "Display server telemetry, member count, boost level, and info."),
             ("`$poll <question>`", "Create a thumbs up/down reaction poll.")
         ]
     },
@@ -170,6 +178,34 @@ MODULES = {
             ("`$checkperms` / `$perms`", "Perform full server permission audit to ensure zero missing permissions."),
             ("`$sync`", "Globally synchronize application slash commands to Discord."),
             ("`$reload <cog|all>`", "Hot-reload bot cogs without taking the bot offline.")
+        ]
+    },
+    "slash": {
+        "title": "⚡ Application Slash Commands (/)",
+        "description": "Native Discord slash command equivalents available across the entire server.",
+        "emoji": "⚡",
+        "color": 0x5865F2,
+        "commands": [
+            ("`/help`", "Open the clean interactive help desk modal & menu."),
+            ("`/shop [category]`", "Browse the verified marketplace catalog with direct ticket ordering."),
+            ("`/payment`", "View accepted payment methods and wallet addresses."),
+            ("`/tos`", "View shop Terms of Service and warranty guidelines."),
+            ("`/ticket <close|transcript>`", "Close current ticket channel or export HTML transcript."),
+            ("`/vouch @user <stars> <comment>`", "Submit a verified customer review for a trader."),
+            ("`/vouchlb`", "View top vouched server merchants leaderboard."),
+            ("`/ping`", "Check real-time network and gateway latency."),
+            ("`/avatar [@user]`", "View a member's avatar in full resolution."),
+            ("`/userinfo [@user]`", "Inspect a member's profile dossier, badges, and roles."),
+            ("`/serverinfo`", "Inspect server telemetry and stats."),
+            ("`/say <message>`", "Make the bot repeat a message."),
+            ("`/warn @user <reason>`", "Issue an official disciplinary warning to a member."),
+            ("`/mute @user <duration> <reason>`", "Timeout a member (e.g. `10m`, `1h`, `7d`)."),
+            ("`/kick @user <reason>`", "Kick a member from the server."),
+            ("`/ban @user <reason>`", "Ban a member permanently."),
+            ("`/purge <amount>`", "Bulk delete messages (1 to 100)."),
+            ("`/stock`", "Check live product inventory levels."),
+            ("`/gtn <min> <max>`", "Start Guess The Number game."),
+            ("`/poll <question>`", "Create a community reaction poll.")
         ]
     }
 }
@@ -191,7 +227,8 @@ class HelpSelect(discord.ui.Select):
             discord.SelectOption(label="Guess The Number", description="GTN mini-game with +/- reactions", emoji="🎮", value="gtn"),
             discord.SelectOption(label="Welcomer", description="Welcome embeds, autoroles, leave logs", emoji="👋", value="welcomer"),
             discord.SelectOption(label="Fun & Utilities", description="$say, $spam, multi-ping, 8ball, tools", emoji="🎉", value="fun"),
-            discord.SelectOption(label="Management & Owner", description="No-prefix, diagnostics, perms audit", emoji="👑", value="owner")
+            discord.SelectOption(label="Management & Owner", description="No-prefix, diagnostics, perms audit", emoji="👑", value="owner"),
+            discord.SelectOption(label="Slash Commands", description="Top 20 Discord application slash commands", emoji="⚡", value="slash")
         ]
         super().__init__(
             placeholder="🏠 Home",
