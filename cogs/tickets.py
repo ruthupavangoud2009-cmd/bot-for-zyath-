@@ -104,8 +104,9 @@ class CreateTicketModal(discord.ui.Modal):
         staff_role_id = settings.get("ticket_staff_role_id")
         staff_role = guild.get_role(staff_role_id) if staff_role_id else None
 
-        clean_user_name = user.name.lower().replace(" ", "-")
-        channel_name = f"ticket-{category_name.lower()[:4]}-{clean_user_name}"
+        clean_user_name = "".join(c for c in user.name.lower() if c.isalnum() or c in "-_")
+        clean_cat = "".join(c for c in category_name.lower() if c.isalnum())[:6]
+        channel_name = f"ticket-{clean_cat}-{clean_user_name}"[:32]
 
         try:
             ticket_channel = await create_safe_ticket_channel(
@@ -177,6 +178,26 @@ class RemoveUserModal(discord.ui.Modal, title="Remove Member from Ticket"):
         except Exception as e:
             await interaction.response.send_message(embed=error_embed("Error", f"Failed to remove member: {str(e)}"), ephemeral=True)
 
+class CreateInvoiceModal(discord.ui.Modal, title="Issue Order Invoice"):
+    amount = discord.ui.TextInput(label="Amount Due", placeholder="e.g. $25.00 / 0.05 LTC", required=True)
+    method = discord.ui.TextInput(label="Payment Method / Address", placeholder="e.g. LTC: ltc1q... / PayPal: user@email", required=True)
+    product = discord.ui.TextInput(label="Product / Item", placeholder="e.g. Discord Nitro 1 Year", required=True)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        embed = standard_embed(
+            title=f"🧾 Official Invoice • {self.product.value}",
+            description=(
+                f"**Amount Due:** `{self.amount.value}`\n"
+                f"**Payment Method / Address:**\n```{self.method.value}```\n\n"
+                f"Please send the exact amount to complete your order.\n"
+                f"Once paid, send a screenshot of the transaction here."
+            ),
+            color=0x2ECC71
+        )
+        embed.set_footer(text=f"Issued by {interaction.user.display_name} • Zyath Store")
+        await interaction.channel.send(embed=embed)
+        await interaction.response.send_message("Invoice sent successfully!", ephemeral=True)
+
 # --- Ticket Action Views ---
 class TicketControlsView(discord.ui.View):
     def __init__(self):
@@ -227,13 +248,26 @@ class TicketControlsView(discord.ui.View):
         await interaction.response.edit_message(view=self)
         await interaction.channel.send(embed=success_embed("Ticket Claimed", f"🌟 {interaction.user.mention} is now handling this ticket!"))
 
+    @discord.ui.button(label="Invoice", style=discord.ButtonStyle.primary, emoji="🧾", custom_id="ticket_invoice_btn")
+    async def invoice_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        settings = await db.get_guild_settings(interaction.guild_id)
+        staff_role_id = settings.get("ticket_staff_role_id")
+        is_staff = interaction.user.guild_permissions.manage_messages
+        if staff_role_id:
+            role = interaction.guild.get_role(staff_role_id)
+            if role and role in interaction.user.roles:
+                is_staff = True
+        if not is_staff:
+            return await interaction.response.send_message(embed=error_embed("Access Denied", "Only staff can issue invoices."), ephemeral=True)
+        await interaction.response.send_modal(CreateInvoiceModal())
+
     @discord.ui.button(label="Transcript", style=discord.ButtonStyle.secondary, emoji="📜", custom_id="ticket_transcript_btn")
     async def transcript_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
         file = await generate_html_transcript(interaction.channel)
         await interaction.followup.send(content="📄 **Here is your ticket transcript:**", file=file)
 
-    @discord.ui.button(label="Add Member", style=discord.ButtonStyle.primary, emoji="➕", custom_id="ticket_add_btn")
+    @discord.ui.button(label="Add Member", style=discord.ButtonStyle.secondary, emoji="➕", custom_id="ticket_add_btn")
     async def add_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(AddUserModal())
 
@@ -332,6 +366,10 @@ class TicketPanelView(discord.ui.View):
     @discord.ui.button(label="🛠️ Support", style=discord.ButtonStyle.secondary, emoji="🛠️", custom_id="btn_panel_support")
     async def btn_support(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(CreateTicketModal("General Support"))
+
+    @discord.ui.button(label="⚠️ Report", style=discord.ButtonStyle.danger, emoji="⚠️", custom_id="btn_panel_report")
+    async def btn_report(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(CreateTicketModal("Report"))
 
 # --- Cog Class ---
 class Tickets(commands.Cog):

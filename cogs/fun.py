@@ -34,8 +34,10 @@ class Fun(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        # Active ghost spam tracking per channel_id
+        self.active_spams = {}
 
-    @commands.command(name="say", help="Make the bot say something and delete your command message. E.g. $say hi")
+    @commands.command(name="say", aliases=["echo", "botmsg", "speak"], help="Make the bot say something and delete your message. E.g. $say hi")
     async def say(self, ctx: commands.Context, *, message: str = None):
         # Delete author's trigger message immediately
         try:
@@ -43,10 +45,49 @@ class Fun(commands.Cog):
         except Exception:
             pass
 
+        # If user ran $say without args, default to "hi"
         if not message:
-            return
+            message = "hi"
 
-        await ctx.send(message)
+        # Check if user attached any files/images to the message and forward them
+        files = []
+        if ctx.message.attachments:
+            for attachment in ctx.message.attachments:
+                try:
+                    files.append(await attachment.to_file())
+                except Exception:
+                    pass
+
+        if files:
+            await ctx.send(content=message, files=files)
+        else:
+            await ctx.send(message)
+
+    @commands.command(name="hi", aliases=["hello", "hey"], help="Say hi to Zyath Bot with a sleek interactive greeting!")
+    async def hi_command(self, ctx: commands.Context):
+        # Delete user's trigger message immediately
+        try:
+            await ctx.message.delete()
+        except Exception:
+            pass
+
+        guild_name = ctx.guild.name if ctx.guild else "Zyath Community"
+        embed = standard_embed(
+            title="👋 Hello & Welcome!",
+            description=(
+                f"Hey {ctx.author.mention}! Welcome to **{guild_name}**!\n\n"
+                f"✨ **Quick Actions:**\n"
+                f"• 🛒 Browse Store: `$shop`\n"
+                f"• 🎫 Open Ticket: `$ticketpanel`\n"
+                f"• 🤝 Middleman / Trade: `$mercy`\n"
+                f"• 📜 All Commands: `$help`"
+            ),
+            color=0x5763719
+        )
+        if ctx.guild and ctx.guild.icon:
+            embed.set_thumbnail(url=ctx.guild.icon.url)
+        embed.set_footer(text=f"Have a great day • Zyath Assistant")
+        await ctx.send(embed=embed)
 
     @commands.command(name="sayembed", help="Make the bot speak in a clean embed. E.g. $sayembed Title | Description")
     async def say_embed(self, ctx: commands.Context, *, text: str):
@@ -75,11 +116,10 @@ class Fun(commands.Cog):
             pass
 
         allowed_users = get_allowed_spam_users()
-        # Allow if author ID in allowed list or bot owner
         is_owner = await self.bot.is_owner(ctx.author)
         if str(ctx.author.id) not in allowed_users and not is_owner:
             err = await ctx.send(embed=error_embed("Restricted Command", "⛔ You are not authorized to use the `$spam` command."))
-            await err.delete(delay=4)
+            await err.delete(delay=3)
             return
 
         if count < 1:
@@ -89,15 +129,53 @@ class Fun(commands.Cog):
 
         text = f"{member.mention} {extra_msg}".strip()
 
-        for _ in range(count):
-            try:
-                msg = await ctx.send(text)
-                await msg.delete()
-                await asyncio.sleep(0.3)
-            except discord.HTTPException:
-                await asyncio.sleep(1.0)
-            except Exception:
-                break
+        # Mark spam active for this channel
+        self.active_spams[ctx.channel.id] = True
+
+        try:
+            for _ in range(count):
+                # Check if cancelled
+                if not self.active_spams.get(ctx.channel.id, False):
+                    break
+
+                try:
+                    msg = await ctx.send(text)
+                    await msg.delete()
+                    await asyncio.sleep(0.3)
+                except discord.HTTPException:
+                    await asyncio.sleep(1.0)
+                except Exception:
+                    break
+        finally:
+            self.active_spams.pop(ctx.channel.id, None)
+
+    @commands.command(name="cancelspam", aliases=["stopspam", "spamcancel", "spamstop", "cspam", "stop"], help="Cancel any active ghost spam in this channel.")
+    async def cancel_spam(self, ctx: commands.Context, scope: str = ""):
+        # Delete trigger message immediately
+        try:
+            await ctx.message.delete()
+        except Exception:
+            pass
+
+        allowed_users = get_allowed_spam_users()
+        is_owner = await self.bot.is_owner(ctx.author)
+        if str(ctx.author.id) not in allowed_users and not is_owner:
+            return
+
+        if scope.lower() == "all":
+            for cid in list(self.active_spams.keys()):
+                self.active_spams[cid] = False
+            notice = await ctx.send(embed=info_embed("Ghost Spam Stopped", "🛑 All active ghost spams were cancelled!"))
+            await notice.delete(delay=3)
+            return
+
+        if self.active_spams.get(ctx.channel.id, False):
+            self.active_spams[ctx.channel.id] = False
+            notice = await ctx.send(embed=info_embed("Ghost Spam Stopped", "🛑 Active ghost spam was cancelled!"))
+            await notice.delete(delay=3)
+        else:
+            notice = await ctx.send(embed=info_embed("No Active Spam", "No ghost spam is running in this channel."))
+            await notice.delete(delay=3)
 
     @commands.command(name="setspamusers", aliases=["addspamuser"], help="Set or add allowed user IDs for the $spam command.")
     @commands.has_permissions(administrator=True)

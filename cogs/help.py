@@ -33,6 +33,8 @@ MODULES = {
         "color": 0x5865F2,
         "commands": [
             ("`$ticketpanel [#channel]`", "Deploy the interactive ticket creation panel with categories."),
+            ("`$createembed [#channel]`", "Open the interactive custom embed creator modal."),
+            ("`$invoice <amount> <method> [product]`", "Send an official order payment invoice inside a ticket."),
             ("`$setticketcategory <category_id>`", "Set the Discord category under which tickets are opened."),
             ("`$setticketrole @role`", "Set the support staff role pinged and granted access to tickets."),
             ("`$setticketlogs #channel`", "Set the transcript and ticket audit archive channel."),
@@ -113,8 +115,10 @@ MODULES = {
         "color": 0xE91E63,
         "commands": [
             ("`$say <message>`", "Make the bot say something and automatically deletes your trigger message."),
+            ("`$hi`", "Say hi to Zyath Bot with an interactive response and delete command message."),
             ("`$sayembed <title> | <desc>`", "Make the bot speak in a styled embed and deletes trigger message."),
             ("`$spam <count> @user [msg]`", "Restricted command: deletes trigger, ghost mentions user up to 100x and deletes all spam messages!"),
+            ("`$cancelspam [all]`", "Cancel and stop active ghost spam immediately (Aliases: $stopspam, $stop)."),
             ("`$setspamusers @user`", "Authorize a user to execute the restricted `$spam` command."),
             ("`$removespamuser @user`", "Revoke `$spam` command permission for a user."),
             ("`$8ball <question>`", "Ask the magic fortune 8-ball."),

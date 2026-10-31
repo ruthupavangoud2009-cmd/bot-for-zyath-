@@ -192,6 +192,7 @@ class Owner(commands.Cog):
         manage_messages = perms.manage_messages
         send_messages = perms.send_messages
         embed_links = perms.embed_links
+        attach_files = perms.attach_files
         cat_id = settings.get("ticket_category_id")
         role_id = settings.get("ticket_staff_role_id")
         logs_id = settings.get("ticket_logs_channel_id")
