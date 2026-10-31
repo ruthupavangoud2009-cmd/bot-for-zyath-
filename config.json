@@ -1,0 +1,24 @@
+{
+  "prefix": "$",
+  "bot_name": "Zyath Bot",
+  "embed_color": 5793266,
+  "success_color": 5763719,
+  "error_color": 15548997,
+  "warning_color": 16705372,
+  "info_color": 3447003,
+  "allowed_spam_users": [
+    "REPLACE_WITH_USER_ID_1",
+    "REPLACE_WITH_USER_ID_2"
+  ],
+  "default_channels": {
+    "vouch_channel_id": null,
+    "trade_channel_id": null,
+    "modlog_channel_id": null,
+    "welcome_channel_id": null,
+    "leave_channel_id": null,
+    "ticket_category_id": null,
+    "ticket_logs_channel_id": null,
+    "ticket_staff_role_id": null,
+    "autorole_id": null
+  }
+}
