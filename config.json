@@ -16,6 +16,15 @@
     "1521774957065928734",
     "1505515188991033409"
   ],
+  "bot_staff": {
+    "1521774957065928734": "Staff",
+    "1505515188991033409": "Staff"
+  },
+  "staff_ids": [
+    "1521774957065928734",
+    "1505515188991033409"
+  ],
+  "no_prefix_users": [],
   "default_channels": {
     "vouch_channel_id": null,
     "trade_channel_id": null,

@@ -370,9 +370,12 @@ python main.py
 ### 👑 Owner, Bot Staff & No-Prefix (100% Persistent Database)
 | Command | Description |
 |---|---|
-| `$botstaff add <@user\|id> [role]` | Appoint authorized bot staff member (saved in Supabase/SQLite DB) |
+| `$botstaff add <@user\|id> [role]` | Appoint authorized bot staff member (saved in PostgreSQL, SQLite & config.json) |
 | `$botstaff remove <@user\|id>` | Revoke staff status from a user |
 | `$botstaff list` | List all authorized bot staff and roles |
+| `$owner add <@user\|id>` | Appoint permanent root bot owner (saved in PostgreSQL, SQLite & config.json) |
+| `$owner remove <@user\|id>` | Revoke root owner status from a user |
+| `$owner list` | List all authorized root bot owners |
 | `$np add <@user\|id>` | Whitelist member to execute all commands without prefix |
 | `$np remove <@user\|id>` | Revoke permanent no-prefix access |
 | `$np list` | View all authorized no-prefix users in database |

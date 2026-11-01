@@ -43,7 +43,7 @@ def get_config_owner_ids():
             pass
     return ids
 
-OWNER_IDS = get_config_owner_ids()
+from utils.config_manager import get_owner_ids
 
 async def get_prefix(bot, message):
     guild_prefix = DEFAULT_PREFIX
@@ -56,9 +56,10 @@ async def get_prefix(bot, message):
 
     # Check if author is an owner, staff, or in no-prefix whitelist
     author_id = message.author.id if message.author else 0
-    if author_id in OWNER_IDS or db.is_no_prefix_cached(author_id) or db.is_staff_cached(author_id):
+    if author_id in get_owner_ids() or db.is_no_prefix_cached(author_id) or db.is_staff_cached(author_id):
         return (guild_prefix, "")
     return guild_prefix
+
 
 # Setup bot intents
 intents = discord.Intents.all()

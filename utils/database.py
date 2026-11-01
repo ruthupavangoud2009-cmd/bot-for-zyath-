@@ -526,11 +526,16 @@ class Database:
                 print(f"\033[93m[DATABASE WARNING]\033[0m Could not connect to Supabase: {e}. Falling back to SQLite.")
                 self.is_postgres = False
 
-        if not self.is_postgres:
+        # Always ensure SQLite schema is initialized for local backup & offline resilience
+        try:
             async with aiosqlite.connect(self.sqlite_path) as db:
                 await db.executescript(SQLITE_SCHEMA)
                 await db.commit()
-            print("\033[92m[DATABASE]\033[0m Local SQLite database initialized.")
+            if not self.is_postgres:
+                print("\033[92m[DATABASE]\033[0m Local SQLite database initialized.")
+        except Exception as e:
+            print(f"\033[93m[DATABASE WARNING]\033[0m SQLite schema init warning: {e}")
+
 
         await self.load_np_cache()
         await self.load_staff_cache()
@@ -552,43 +557,97 @@ class Database:
         return round(latency_ms, 2), engine
 
     async def load_np_cache(self):
-        """Loads whitelisted no-prefix users into in-memory cache for fast sync lookups."""
+        """Loads whitelisted no-prefix users from Postgres, SQLite, and config.json into in-memory cache."""
+        loaded_np = set()
         try:
             if self.is_postgres and self.pool:
                 async with self.pool.acquire() as conn:
                     rows = await conn.fetch("SELECT user_id FROM no_prefix_users")
-                    self._np_cache = {int(r["user_id"]) for r in rows}
-            else:
-                async with aiosqlite.connect(self.sqlite_path) as db:
-                    cursor = await db.execute("SELECT user_id FROM no_prefix_users")
-                    rows = await cursor.fetchall()
-                    self._np_cache = {int(r[0]) for r in rows}
+                    for r in rows:
+                        loaded_np.add(int(r["user_id"]))
         except Exception as e:
-            print(f"[CACHE] Error loading NP cache: {e}")
+            print(f"[CACHE] Error loading NP cache from Postgres: {e}")
+
+        try:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("SELECT user_id FROM no_prefix_users")
+                rows = await cursor.fetchall()
+                for r in rows:
+                    loaded_np.add(int(r[0]))
+        except Exception as e:
+            print(f"[CACHE] Error loading NP cache from SQLite: {e}")
+
+        try:
+            from utils.config_manager import get_no_prefix_users, save_no_prefix_users
+            cfg_users = get_no_prefix_users()
+            for u in cfg_users:
+                if str(u).isdigit():
+                    loaded_np.add(int(u))
+            save_no_prefix_users([str(x) for x in loaded_np])
+        except Exception as e:
+            print(f"[CACHE] Error syncing NP cache with config.json: {e}")
+
+        self._np_cache = loaded_np
 
     def is_no_prefix_cached(self, user_id: int) -> bool:
         return user_id in self._np_cache
 
     async def load_staff_cache(self):
-        """Loads authorized bot staff into memory cache."""
+        """Loads authorized bot staff from Postgres, SQLite, and config.json with full synchronization."""
+        loaded_staff: Dict[int, str] = {}
         try:
             if self.is_postgres and self.pool:
                 async with self.pool.acquire() as conn:
                     rows = await conn.fetch("SELECT user_id, role FROM bot_staff")
-                    self._staff_cache = {int(r["user_id"]): r["role"] for r in rows}
-            else:
-                async with aiosqlite.connect(self.sqlite_path) as db:
-                    cursor = await db.execute("SELECT user_id, role FROM bot_staff")
-                    rows = await cursor.fetchall()
-                    self._staff_cache = {int(r[0]): r[1] for r in rows}
+                    for r in rows:
+                        loaded_staff[int(r["user_id"])] = str(r["role"] or "Staff")
         except Exception as e:
-            print(f"[CACHE] Error loading staff cache: {e}")
+            print(f"[CACHE] Error loading staff cache from Postgres: {e}")
+
+        try:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("SELECT user_id, role FROM bot_staff")
+                rows = await cursor.fetchall()
+                for r in rows:
+                    uid = int(r[0])
+                    if uid not in loaded_staff:
+                        loaded_staff[uid] = str(r[1] or "Staff")
+        except Exception as e:
+            print(f"[CACHE] Error loading staff cache from SQLite: {e}")
+
+        try:
+            from utils.config_manager import get_bot_staff, save_bot_staff
+            cfg_staff = get_bot_staff()
+            for uid_str, role in cfg_staff.items():
+                if uid_str.isdigit():
+                    uid = int(uid_str)
+                    if uid not in loaded_staff:
+                        loaded_staff[uid] = str(role or "Staff")
+            # Sync merged staff back to config.json
+            save_bot_staff({str(k): v for k, v in loaded_staff.items()})
+        except Exception as e:
+            print(f"[CACHE] Error syncing staff cache with config.json: {e}")
+
+        self._staff_cache = loaded_staff
+
+        # Sync back to SQLite to guarantee offline permanence
+        try:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                for uid, role in self._staff_cache.items():
+                    await db.execute("""
+                        INSERT INTO bot_staff (user_id, role, added_by) VALUES (?, ?, 0)
+                        ON CONFLICT(user_id) DO UPDATE SET role = excluded.role
+                    """, (uid, role))
+                await db.commit()
+        except Exception as e:
+            print(f"[CACHE] Error syncing staff cache to SQLite backup: {e}")
 
     def is_staff_cached(self, user_id: int) -> bool:
         return user_id in self._staff_cache
 
     def get_staff_role(self, user_id: int) -> Optional[str]:
         return self._staff_cache.get(user_id)
+
 
     async def load_premium_cache(self):
         """Loads active premium guilds & users into memory cache."""
@@ -1300,92 +1359,198 @@ class Database:
     # NO-PREFIX USERS
     # ==========================================
     async def add_no_prefix_user(self, user_id: int, added_by: int):
+        # 1. PostgreSQL
         if self.is_postgres and self.pool:
-            async with self.pool.acquire() as conn:
-                await conn.execute("""
-                    INSERT INTO no_prefix_users (user_id, added_by) VALUES ($1, $2)
-                    ON CONFLICT(user_id) DO NOTHING
-                """, user_id, added_by)
-        else:
+            try:
+                async with self.pool.acquire() as conn:
+                    await conn.execute("""
+                        INSERT INTO no_prefix_users (user_id, added_by) VALUES ($1, $2)
+                        ON CONFLICT(user_id) DO NOTHING
+                    """, user_id, added_by)
+            except Exception as e:
+                print(f"[DB] Error adding NP user to postgres: {e}")
+
+        # 2. SQLite local backup
+        try:
             async with aiosqlite.connect(self.sqlite_path) as db:
                 await db.execute("""
                     INSERT INTO no_prefix_users (user_id, added_by) VALUES (?, ?)
                     ON CONFLICT(user_id) DO NOTHING
                 """, (user_id, added_by))
                 await db.commit()
+        except Exception as e:
+            print(f"[DB] Error adding NP user to sqlite: {e}")
+
+        # 3. config.json
+        try:
+            from utils.config_manager import add_no_prefix_to_config
+            add_no_prefix_to_config(user_id)
+        except Exception as e:
+            print(f"[CONFIG] Error adding NP user to config.json: {e}")
+
         self._np_cache.add(user_id)
 
     async def remove_no_prefix_user(self, user_id: int) -> bool:
+        removed = False
+        # 1. PostgreSQL
         if self.is_postgres and self.pool:
-            async with self.pool.acquire() as conn:
-                res = await conn.execute("DELETE FROM no_prefix_users WHERE user_id = $1", user_id)
-                removed = "DELETE 1" in res
-        else:
+            try:
+                async with self.pool.acquire() as conn:
+                    res = await conn.execute("DELETE FROM no_prefix_users WHERE user_id = $1", user_id)
+                    removed = "DELETE 1" in res
+            except Exception as e:
+                print(f"[DB] Error removing NP user from postgres: {e}")
+
+        # 2. SQLite
+        try:
             async with aiosqlite.connect(self.sqlite_path) as db:
                 cursor = await db.execute("DELETE FROM no_prefix_users WHERE user_id = ?", (user_id,))
                 await db.commit()
-                removed = cursor.rowcount > 0
-        if removed:
-            self._np_cache.discard(user_id)
+                if cursor.rowcount > 0:
+                    removed = True
+        except Exception as e:
+            print(f"[DB] Error removing NP user from sqlite: {e}")
+
+        # 3. config.json
+        try:
+            from utils.config_manager import remove_no_prefix_from_config
+            if remove_no_prefix_from_config(user_id):
+                removed = True
+        except Exception as e:
+            print(f"[CONFIG] Error removing NP user from config.json: {e}")
+
+        self._np_cache.discard(user_id)
         return removed
 
     async def get_all_no_prefix_users(self) -> List[Dict[str, Any]]:
+        entries: Dict[int, Dict[str, Any]] = {}
         if self.is_postgres and self.pool:
-            async with self.pool.acquire() as conn:
-                rows = await conn.fetch("SELECT * FROM no_prefix_users ORDER BY timestamp DESC")
-                return [dict(r) for r in rows]
-        else:
+            try:
+                async with self.pool.acquire() as conn:
+                    rows = await conn.fetch("SELECT * FROM no_prefix_users ORDER BY timestamp DESC")
+                    for r in rows:
+                        entries[int(r["user_id"])] = dict(r)
+            except Exception as e:
+                print(f"[DB] Error fetching NP users from postgres: {e}")
+
+        try:
             async with aiosqlite.connect(self.sqlite_path) as db:
                 db.row_factory = aiosqlite.Row
                 cursor = await db.execute("SELECT * FROM no_prefix_users ORDER BY timestamp DESC")
                 rows = await cursor.fetchall()
-                return [dict(r) for r in rows]
+                for r in rows:
+                    uid = int(r["user_id"])
+                    if uid not in entries:
+                        entries[uid] = dict(r)
+        except Exception as e:
+            print(f"[DB] Error fetching NP users from sqlite: {e}")
+
+        for uid in self._np_cache:
+            if uid not in entries:
+                entries[uid] = {"user_id": uid, "added_by": 0, "timestamp": datetime.datetime.utcnow()}
+
+        return list(entries.values())
 
     # ==========================================
     # BOT STAFF SYSTEM
     # ==========================================
     async def add_bot_staff(self, user_id: int, role: str, added_by: int):
         clean_role = (role or "Staff").strip()[:30]
+        # 1. PostgreSQL
         if self.is_postgres and self.pool:
-            async with self.pool.acquire() as conn:
-                await conn.execute("""
-                    INSERT INTO bot_staff (user_id, role, added_by) VALUES ($1, $2, $3)
-                    ON CONFLICT(user_id) DO UPDATE SET role = EXCLUDED.role, added_by = EXCLUDED.added_by
-                """, user_id, clean_role, added_by)
-        else:
+            try:
+                async with self.pool.acquire() as conn:
+                    await conn.execute("""
+                        INSERT INTO bot_staff (user_id, role, added_by) VALUES ($1, $2, $3)
+                        ON CONFLICT(user_id) DO UPDATE SET role = EXCLUDED.role, added_by = EXCLUDED.added_by
+                    """, user_id, clean_role, added_by)
+            except Exception as e:
+                print(f"[DB] Error adding bot staff to postgres: {e}")
+
+        # 2. SQLite local backup
+        try:
             async with aiosqlite.connect(self.sqlite_path) as db:
                 await db.execute("""
                     INSERT INTO bot_staff (user_id, role, added_by) VALUES (?, ?, ?)
                     ON CONFLICT(user_id) DO UPDATE SET role = excluded.role, added_by = excluded.added_by
                 """, (user_id, clean_role, added_by))
                 await db.commit()
+        except Exception as e:
+            print(f"[DB] Error adding bot staff to sqlite: {e}")
+
+        # 3. config.json
+        try:
+            from utils.config_manager import add_staff_to_config
+            add_staff_to_config(user_id, clean_role)
+        except Exception as e:
+            print(f"[CONFIG] Error adding bot staff to config.json: {e}")
+
         self._staff_cache[user_id] = clean_role
 
     async def remove_bot_staff(self, user_id: int) -> bool:
+        removed = False
+        # 1. PostgreSQL
         if self.is_postgres and self.pool:
-            async with self.pool.acquire() as conn:
-                res = await conn.execute("DELETE FROM bot_staff WHERE user_id = $1", user_id)
-                removed = "DELETE 1" in res
-        else:
+            try:
+                async with self.pool.acquire() as conn:
+                    res = await conn.execute("DELETE FROM bot_staff WHERE user_id = $1", user_id)
+                    removed = "DELETE 1" in res
+            except Exception as e:
+                print(f"[DB] Error removing bot staff from postgres: {e}")
+
+        # 2. SQLite
+        try:
             async with aiosqlite.connect(self.sqlite_path) as db:
                 cursor = await db.execute("DELETE FROM bot_staff WHERE user_id = ?", (user_id,))
                 await db.commit()
-                removed = cursor.rowcount > 0
-        if removed:
-            self._staff_cache.pop(user_id, None)
+                if cursor.rowcount > 0:
+                    removed = True
+        except Exception as e:
+            print(f"[DB] Error removing bot staff from sqlite: {e}")
+
+        # 3. config.json
+        try:
+            from utils.config_manager import remove_staff_from_config
+            if remove_staff_from_config(user_id):
+                removed = True
+        except Exception as e:
+            print(f"[CONFIG] Error removing bot staff from config.json: {e}")
+
+        self._staff_cache.pop(user_id, None)
         return removed
 
     async def get_all_bot_staff(self) -> List[Dict[str, Any]]:
+        entries: Dict[int, Dict[str, Any]] = {}
+        # 1. PostgreSQL
         if self.is_postgres and self.pool:
-            async with self.pool.acquire() as conn:
-                rows = await conn.fetch("SELECT * FROM bot_staff ORDER BY timestamp DESC")
-                return [dict(r) for r in rows]
-        else:
+            try:
+                async with self.pool.acquire() as conn:
+                    rows = await conn.fetch("SELECT * FROM bot_staff ORDER BY timestamp DESC")
+                    for r in rows:
+                        entries[int(r["user_id"])] = dict(r)
+            except Exception as e:
+                print(f"[DB] Error fetching bot staff from postgres: {e}")
+
+        # 2. SQLite
+        try:
             async with aiosqlite.connect(self.sqlite_path) as db:
                 db.row_factory = aiosqlite.Row
                 cursor = await db.execute("SELECT * FROM bot_staff ORDER BY timestamp DESC")
                 rows = await cursor.fetchall()
-                return [dict(r) for r in rows]
+                for r in rows:
+                    uid = int(r["user_id"])
+                    if uid not in entries:
+                        entries[uid] = dict(r)
+        except Exception as e:
+            print(f"[DB] Error fetching bot staff from sqlite: {e}")
+
+        # 3. Include memory cache / config.json items
+        for uid, role in self._staff_cache.items():
+            if uid not in entries:
+                entries[uid] = {"user_id": uid, "role": role, "added_by": 0, "timestamp": datetime.datetime.utcnow()}
+
+        return list(entries.values())
+
 
     # ==========================================
     # PREMIUM SUBSCRIPTION SYSTEM

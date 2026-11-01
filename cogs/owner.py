@@ -7,11 +7,13 @@ from typing import Optional
 from utils.embeds import standard_embed, success_embed, error_embed, info_embed
 from utils.database import db
 
-OWNER_IDS = {1521774957065928734, 1505515188991033409}
+from utils.config_manager import (
+    get_owner_ids, check_is_owner, add_owner_to_config, remove_owner_from_config
+)
 
 def is_bot_owner():
     async def predicate(ctx: commands.Context):
-        if ctx.author.id in OWNER_IDS or await ctx.bot.is_owner(ctx.author):
+        if await check_is_owner(ctx.bot, ctx.author):
             return True
         await ctx.send(embed=error_embed("Access Denied", "⛔ This command is restricted to the bot owners only."))
         return False
@@ -20,8 +22,7 @@ def is_bot_owner():
 def is_bot_staff():
     async def predicate(ctx: commands.Context):
         if (
-            ctx.author.id in OWNER_IDS
-            or await ctx.bot.is_owner(ctx.author)
+            await check_is_owner(ctx.bot, ctx.author)
             or db.is_staff_cached(ctx.author.id)
         ):
             return True
@@ -242,12 +243,17 @@ class Owner(commands.Cog):
     @is_bot_staff()
     async def botstaff_list(self, ctx: commands.Context):
         staff = await db.get_all_bot_staff()
-        desc = "**Bot Owners (Root):**\n• <@1521774957065928734> (`1521774957065928734`)\n• <@1505515188991033409> (`1505515188991033409`)\n\n**Appointed Staff:**\n"
+        owners = get_owner_ids()
+        desc = "**Bot Owners (Root):**\n"
+        for oid in sorted(owners):
+            desc += f"• <@{oid}> (`{oid}`)\n"
+        desc += "\n**Appointed Staff:**\n"
         if not staff:
             desc += "*No additional staff appointed in database.*"
         else:
             for s in staff:
-                desc += f"• <@{s['user_id']}> (`{s['user_id']}`) — **{s['role']}** (added by <@{s['added_by']}>)\n"
+                added_str = f" (added by <@{s['added_by']}>)" if s.get('added_by') else ""
+                desc += f"• <@{s['user_id']}> (`{s['user_id']}`) — **{s['role']}**{added_str}\n"
 
         embed = standard_embed(
             title="🛡️ Official Bot Staff Directory",
@@ -255,6 +261,67 @@ class Owner(commands.Cog):
             color=0x5865F2
         )
         await ctx.send(embed=embed)
+
+    # ==========================================
+    # BOT OWNER MANAGEMENT ($owner)
+    # ==========================================
+    @commands.group(name="owner", invoke_without_command=True, help="Manage root bot owners. E.g. $owner list")
+    @is_bot_owner()
+    async def owner_group(self, ctx: commands.Context):
+        embed = info_embed(
+            "👑 Bot Owner Management",
+            "• `$owner add <@user|id>` - Add a permanent bot owner (saved to config & DB).\n"
+            "• `$owner remove <@user|id>` - Remove a bot owner.\n"
+            "• `$owner list` - List all root bot owners."
+        )
+        await ctx.send(embed=embed)
+
+    @owner_group.command(name="add", help="Add a root bot owner. E.g. $owner add @user")
+    @is_bot_owner()
+    async def owner_add(self, ctx: commands.Context, target: str):
+        uid = self._resolve_id(target)
+        if not uid:
+            return await ctx.send(embed=error_embed("Invalid User", "Please mention a member or provide a Discord User ID."))
+
+        add_owner_to_config(uid)
+        await db.add_bot_staff(uid, "Owner", ctx.author.id)
+        await ctx.send(embed=success_embed(
+            "Bot Owner Added",
+            f"👑 Added <@{uid}> (`{uid}`) as a permanent **Bot Owner**!\n*Saved permanently in config.json and database.*"
+        ))
+
+    @owner_group.command(name="remove", aliases=["del", "rem"], help="Remove a root bot owner.")
+    @is_bot_owner()
+    async def owner_remove(self, ctx: commands.Context, target: str):
+        uid = self._resolve_id(target)
+        if not uid:
+            return await ctx.send(embed=error_embed("Invalid User", "Please mention a member or provide a Discord User ID."))
+
+        owners = get_owner_ids()
+        if len(owners) <= 1 and uid in owners:
+            return await ctx.send(embed=error_embed("Action Denied", "Cannot remove the only remaining bot owner."))
+
+        removed = remove_owner_from_config(uid)
+        await db.remove_bot_staff(uid)
+        if removed:
+            await ctx.send(embed=success_embed("Owner Removed", f"Successfully removed <@{uid}> (`{uid}`) from Bot Owners."))
+        else:
+            await ctx.send(embed=error_embed("Not Found", f"User <@{uid}> was not listed as a Bot Owner."))
+
+    @owner_group.command(name="list", help="List all bot owners.")
+    @is_bot_owner()
+    async def owner_list(self, ctx: commands.Context):
+        owners = get_owner_ids()
+        desc = "**Root Bot Owners:**\n"
+        for oid in sorted(owners):
+            desc += f"• <@{oid}> (`{oid}`)\n"
+        embed = standard_embed(
+            title="👑 Official Bot Owners Directory",
+            description=desc,
+            color=0xF1C40F
+        )
+        await ctx.send(embed=embed)
+
 
     @commands.command(name="sync", help="Sync application slash commands tree.")
     @is_bot_owner()

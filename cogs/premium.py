@@ -6,15 +6,16 @@ from typing import Optional
 from utils.embeds import standard_embed, success_embed, error_embed, info_embed
 from utils.database import db
 
-OWNER_IDS = {1521774957065928734, 1505515188991033409}
+from utils.config_manager import check_is_owner
 
 def is_bot_staff_or_owner():
     async def predicate(ctx: commands.Context):
-        if ctx.author.id in OWNER_IDS or await ctx.bot.is_owner(ctx.author) or db.is_staff_cached(ctx.author.id):
+        if await check_is_owner(ctx.bot, ctx.author) or db.is_staff_cached(ctx.author.id):
             return True
         await ctx.send(embed=error_embed("Access Denied", "⛔ Restricted to bot owners and authorized bot staff."))
         return False
     return commands.check(predicate)
+
 
 class Premium(commands.Cog):
     """Elite Premium Subscription System for Guilds and Members."""
