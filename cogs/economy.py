@@ -5,6 +5,9 @@ import time
 from typing import Optional
 from utils.embeds import standard_embed, success_embed, error_embed, info_embed
 from utils.database import db
+from utils.config_manager import check_is_owner, get_owner_ids
+
+INF_CASH_AMOUNT = 999_999_999_999_999  # 1 Quadrillion coins (Infinite Cash Mode)
 
 WORK_SCENARIOS = [
     ("You worked as a Discord Moderator", 250, 600),
@@ -52,13 +55,19 @@ class Economy(commands.Cog):
         net_worth = wallet + bank
         streak = eco.get("streak", 0)
 
+        wallet_str = "♾️ Infinite" if wallet >= INF_CASH_AMOUNT else f"`{wallet:,}` coins"
+        bank_str = "♾️ Infinite" if bank >= INF_CASH_AMOUNT else f"`{bank:,}` / `{bank_max:,}` coins"
+        net_worth_str = "♾️ Infinite" if net_worth >= INF_CASH_AMOUNT else f"`{net_worth:,}` coins"
+
+        inf_badge = "\n👑 **Status:** `♾️ INFINITE CASH ACTIVATED`" if wallet >= INF_CASH_AMOUNT else ""
+
         embed = standard_embed(
             title=f"💳 Financial Dossier • {target.display_name}",
             description=(
-                f"🪙 **Wallet:** `{wallet:,}` coins\n"
-                f"🏦 **Bank:** `{bank:,}` / `{bank_max:,}` coins\n"
-                f"💎 **Net Worth:** `{net_worth:,}` coins\n"
-                f"🔥 **Daily Streak:** `{streak}` days"
+                f"🪙 **Wallet:** {wallet_str}\n"
+                f"🏦 **Bank:** {bank_str}\n"
+                f"💎 **Net Worth:** {net_worth_str}\n"
+                f"🔥 **Daily Streak:** `{streak}` days{inf_badge}"
             ),
             color=0xFEE75C
         )
@@ -355,17 +364,35 @@ class Economy(commands.Cog):
     # ==========================================
     # 9. CASINO SLOTS
     # ==========================================
-    @commands.command(name="slots", aliases=["slotmachine"], help="Play the casino slot machine! E.g. $slots 100")
-    async def slots(self, ctx: commands.Context, bet: int):
-        if bet < 10:
+    @commands.command(name="slots", aliases=["slotmachine"], help="Play the casino slot machine! E.g. $slots 100 or $slots inf")
+    async def slots(self, ctx: commands.Context, bet: str = "100"):
+        eco = await db.get_economy(ctx.guild.id, ctx.author.id)
+        has_inf = eco["wallet"] >= INF_CASH_AMOUNT
+        is_owner = await check_is_owner(self.bot, ctx.author)
+
+        clean_bet = str(bet).lower().strip()
+        is_inf_bet = False
+
+        if clean_bet in ["inf", "infinite", "infinity"]:
+            if not is_owner and not has_inf:
+                return await ctx.send(embed=error_embed("Restricted Bet", "⛔ Only bot owners or players with infinite cash can bet infinite cash in minigames!"))
+            bet_val = 1_000_000
+            is_inf_bet = True
+        elif clean_bet in ["all", "max"]:
+            bet_val = min(eco["wallet"], 1_000_000)
+        elif clean_bet.isdigit():
+            bet_val = int(clean_bet)
+        else:
+            return await ctx.send(embed=error_embed("Invalid Bet", "Please specify a numeric bet (e.g. `$slots 100`) or `inf`."))
+
+        if bet_val < 10:
             return await ctx.send(embed=error_embed("Minimum Bet", "Minimum slot machine bet is **10 coins**."))
 
-        eco = await db.get_economy(ctx.guild.id, ctx.author.id)
-        if eco["wallet"] < bet:
+        if eco["wallet"] < bet_val and not has_inf:
             return await ctx.send(embed=error_embed("Insufficient Funds", f"You only have **{eco['wallet']:,} coins** in your wallet!"))
 
-        # Deduct bet upfront
-        curr_wallet = eco["wallet"] - bet
+        # Deduct bet upfront (if user has infinite cash, their wallet stays infinite)
+        curr_wallet = eco["wallet"] if has_inf else max(0, eco["wallet"] - bet_val)
 
         r1 = random.choice(SLOT_EMOJIS)
         r2 = random.choice(SLOT_EMOJIS)
@@ -382,16 +409,20 @@ class Economy(commands.Cog):
             else:
                 multiplier = 5
                 note = "✨ **TRIPLE MATCH (5x)!** ✨"
-            winnings = bet * multiplier
+            winnings = bet_val * multiplier
         elif r1 == r2 or r2 == r3 or r1 == r3:
             multiplier = 2
             note = "🎊 **DOUBLE MATCH (2x)!** 🎊"
-            winnings = bet * multiplier
+            winnings = bet_val * multiplier
         else:
             note = "💀 **No match. Better luck next spin!**"
 
-        final_wallet = curr_wallet + winnings
+        final_wallet = INF_CASH_AMOUNT if has_inf else curr_wallet + winnings
         await db.update_economy(ctx.guild.id, ctx.author.id, wallet=final_wallet)
+
+        wager_str = "♾️ Infinite" if is_inf_bet else f"`{bet_val:,}` coins"
+        payout_str = "♾️ Infinite Jackpot" if (is_inf_bet and winnings > 0) else f"`+{winnings:,}` coins"
+        balance_str = "♾️ Infinite" if has_inf else f"`{final_wallet:,}` coins"
 
         embed = standard_embed(
             title="🎰 Zyath Casino Slots 🎰",
@@ -402,9 +433,9 @@ class Economy(commands.Cog):
                 f"└───────────┘\n"
                 f"```\n"
                 f"{note}\n\n"
-                f"• **Wager:** `{bet:,}` coins\n"
-                f"• **Payout:** `+{winnings:,}` coins\n"
-                f"• **New Balance:** `{final_wallet:,}` coins"
+                f"• **Wager:** {wager_str}\n"
+                f"• **Payout:** {payout_str}\n"
+                f"• **New Balance:** {balance_str}"
             ),
             color=0x57F287 if winnings > 0 else 0xED4245
         )
@@ -414,26 +445,45 @@ class Economy(commands.Cog):
     # ==========================================
     # 10. CASINO GAMBLE / DICE DUEL
     # ==========================================
-    @commands.command(name="gamble", aliases=["bet"], help="Roll the dice against the house (double or nothing)! E.g. $gamble 100")
-    async def gamble(self, ctx: commands.Context, bet: int):
-        if bet < 10:
+    @commands.command(name="gamble", aliases=["bet"], help="Roll the dice against the house (double or nothing)! E.g. $gamble 100 or $gamble inf")
+    async def gamble(self, ctx: commands.Context, bet: str = "100"):
+        eco = await db.get_economy(ctx.guild.id, ctx.author.id)
+        has_inf = eco["wallet"] >= INF_CASH_AMOUNT
+        is_owner = await check_is_owner(self.bot, ctx.author)
+
+        clean_bet = str(bet).lower().strip()
+        is_inf_bet = False
+
+        if clean_bet in ["inf", "infinite", "infinity"]:
+            if not is_owner and not has_inf:
+                return await ctx.send(embed=error_embed("Restricted Bet", "⛔ Only bot owners or players with infinite cash can bet infinite cash in minigames!"))
+            bet_val = 1_000_000
+            is_inf_bet = True
+        elif clean_bet in ["all", "max"]:
+            bet_val = min(eco["wallet"], 1_000_000)
+        elif clean_bet.isdigit():
+            bet_val = int(clean_bet)
+        else:
+            return await ctx.send(embed=error_embed("Invalid Bet", "Please specify a numeric bet (e.g. `$gamble 100`) or `inf`."))
+
+        if bet_val < 10:
             return await ctx.send(embed=error_embed("Minimum Bet", "Minimum bet is 10 coins."))
 
-        eco = await db.get_economy(ctx.guild.id, ctx.author.id)
-        if eco["wallet"] < bet:
+        if eco["wallet"] < bet_val and not has_inf:
             return await ctx.send(embed=error_embed("Insufficient Funds", f"You only have **{eco['wallet']:,} coins** in your wallet!"))
 
         player_roll = random.randint(1, 100)
         bot_roll = random.randint(1, 100)
 
         if player_roll > bot_roll:
-            winnings = bet * 2
-            new_wallet = eco["wallet"] + bet  # Net gain is +bet
-            res_str = f"🏆 **YOU WIN!** You rolled a **{player_roll}** beating House's **{bot_roll}**!\n💰 Won: **+{bet:,} coins**!"
+            new_wallet = INF_CASH_AMOUNT if has_inf else eco["wallet"] + bet_val
+            won_str = "♾️ Infinite Cash" if is_inf_bet else f"**+{bet_val:,} coins**"
+            res_str = f"🏆 **YOU WIN!** You rolled a **{player_roll}** beating House's **{bot_roll}**!\n💰 Won: {won_str}!"
             col = 0x57F287
         elif player_roll < bot_roll:
-            new_wallet = eco["wallet"] - bet
-            res_str = f"💀 **HOUSE WINS!** House rolled a **{bot_roll}** beating your **{player_roll}**!\n💸 Lost: **-{bet:,} coins**."
+            new_wallet = INF_CASH_AMOUNT if has_inf else max(0, eco["wallet"] - bet_val)
+            lost_str = "High-Roller Stake" if is_inf_bet else f"**-{bet_val:,} coins**"
+            res_str = f"💀 **HOUSE WINS!** House rolled a **{bot_roll}** beating your **{player_roll}**!\n💸 Lost: {lost_str}."
             col = 0xED4245
         else:
             new_wallet = eco["wallet"]
@@ -442,9 +492,10 @@ class Economy(commands.Cog):
 
         await db.update_economy(ctx.guild.id, ctx.author.id, wallet=new_wallet)
 
+        balance_str = "♾️ Infinite" if has_inf else f"`{new_wallet:,}` coins"
         embed = standard_embed(
             title="🎲 High-Stakes Gamble",
-            description=f"{res_str}\n\n🪙 **Wallet:** `{new_wallet:,}` coins",
+            description=f"{res_str}\n\n🪙 **Wallet:** {balance_str}",
             color=col
         )
         await ctx.send(embed=embed)
@@ -463,7 +514,9 @@ class Economy(commands.Cog):
 
         for idx, entry in enumerate(lb):
             icon = medals[idx] if idx < len(medals) else f"**#{idx+1}**"
-            desc += f"{icon} <@{entry['user_id']}> — **{entry['total']:,}** coins (Wallet: `{entry['wallet']:,}` | Bank: `{entry['bank']:,}`)\n"
+            t = entry['total']
+            t_str = "♾️ Infinite" if t >= INF_CASH_AMOUNT else f"**{t:,}** coins"
+            desc += f"{icon} <@{entry['user_id']}> — {t_str}\n"
 
         embed = standard_embed(
             title=f"💰 Wealth Leaderboard • {ctx.guild.name}",
@@ -475,6 +528,117 @@ class Economy(commands.Cog):
         embed.set_footer(text=f"Requested by {ctx.author.display_name}")
         await ctx.send(embed=embed)
 
+    # ==========================================
+    # 12. OWNER-ONLY INFINITE CASH & MANAGEMENT
+    # ==========================================
+    @commands.command(
+        name="infcash",
+        aliases=["infinitecash", "infmoney", "infinitecoins", "godmode"],
+        help="Owner command: Grant unlimited infinite cash for minigames & economy. E.g. $infcash [@user]"
+    )
+    async def infcash(self, ctx: commands.Context, member: Optional[discord.Member] = None):
+        """Owner-only command to grant infinite cash to self or a member."""
+        if not await check_is_owner(self.bot, ctx.author):
+            return await ctx.send(embed=error_embed(
+                "Access Denied",
+                "⛔ **Restricted Feature:** Only bot owners can add **infinite cash** in minigames!"
+            ))
+
+        target = member or ctx.author
+        await db.update_economy(
+            ctx.guild.id,
+            target.id,
+            wallet=INF_CASH_AMOUNT,
+            bank=INF_CASH_AMOUNT,
+            bank_max=INF_CASH_AMOUNT
+        )
+
+        embed = standard_embed(
+            title="♾️ Infinite Cash Activated!",
+            description=(
+                f"🌟 Successfully granted **Infinite Minigame Funds** to {target.mention}!\n\n"
+                f"🪙 **Wallet:** `♾️ Infinite` (`{INF_CASH_AMOUNT:,}` coins)\n"
+                f"🏦 **Bank Vault:** `♾️ Infinite` (`{INF_CASH_AMOUNT:,}` coins)\n\n"
+                f"🎮 **Minigames & Casino Status:** Unlimited betting enabled for Slots, Gamble, BlackTea, Roulette, and GW games!"
+            ),
+            color=0x57F287
+        )
+        embed.set_thumbnail(url=target.display_avatar.url)
+        embed.set_footer(text=f"Authorized by Bot Owner: {ctx.author.display_name}")
+        await ctx.send(embed=embed)
+
+    @commands.command(
+        name="addcash",
+        aliases=["addmoney", "givecash", "awardcash"],
+        help="Owner command: Add cash or infinite cash to a member. E.g. $addcash @user 50000 or $addcash @user inf"
+    )
+    async def addcash(self, ctx: commands.Context, target: discord.Member, amount: str):
+        """Owner-only command to add cash or infinite cash to a user."""
+        if not await check_is_owner(self.bot, ctx.author):
+            return await ctx.send(embed=error_embed(
+                "Access Denied",
+                "⛔ **Restricted Feature:** Only bot owners can add cash in minigames and economy!"
+            ))
+
+        clean_amt = amount.lower().strip()
+        eco = await db.get_economy(ctx.guild.id, target.id)
+
+        if clean_amt in ["inf", "infinite", "infinity", "max"]:
+            new_wallet = INF_CASH_AMOUNT
+            new_bank_max = INF_CASH_AMOUNT
+            await db.update_economy(ctx.guild.id, target.id, wallet=new_wallet, bank_max=new_bank_max)
+            return await ctx.send(embed=success_embed(
+                "Infinite Cash Added",
+                f"♾️ Granted **Infinite Cash** (`{INF_CASH_AMOUNT:,}` coins) to {target.mention}!\n🪙 **Wallet:** `♾️ Infinite`"
+            ))
+
+        clean_num = clean_amt.replace(",", "").replace("$", "")
+        if not clean_num.isdigit():
+            return await ctx.send(embed=error_embed("Invalid Amount", "Please specify a valid numeric coin amount or `inf`."))
+
+        added = int(clean_num)
+        if added <= 0:
+            return await ctx.send(embed=error_embed("Invalid Amount", "Amount must be greater than 0."))
+
+        new_wallet = min(INF_CASH_AMOUNT, eco["wallet"] + added)
+        await db.update_economy(ctx.guild.id, target.id, wallet=new_wallet)
+
+        wallet_display = "♾️ Infinite" if new_wallet >= INF_CASH_AMOUNT else f"`{new_wallet:,}` coins"
+        await ctx.send(embed=success_embed(
+            "Cash Added",
+            f"💵 Added **+{added:,} coins** to {target.mention}'s wallet!\n🪙 **New Wallet Balance:** {wallet_display}"
+        ))
+
+    @commands.command(
+        name="setcash",
+        aliases=["setmoney"],
+        help="Owner command: Set a member's exact cash wallet balance. E.g. $setcash @user 100000 or $setcash @user inf"
+    )
+    async def setcash(self, ctx: commands.Context, target: discord.Member, amount: str):
+        """Owner-only command to set exact cash balance."""
+        if not await check_is_owner(self.bot, ctx.author):
+            return await ctx.send(embed=error_embed(
+                "Access Denied",
+                "⛔ **Restricted Feature:** Only bot owners can set cash!"
+            ))
+
+        clean_amt = amount.lower().strip()
+        if clean_amt in ["inf", "infinite", "infinity"]:
+            new_wallet = INF_CASH_AMOUNT
+        else:
+            clean_num = clean_amt.replace(",", "").replace("$", "")
+            if not clean_num.isdigit():
+                return await ctx.send(embed=error_embed("Invalid Amount", "Please provide a valid number or `inf`."))
+            new_wallet = max(0, min(INF_CASH_AMOUNT, int(clean_num)))
+
+        await db.update_economy(ctx.guild.id, target.id, wallet=new_wallet)
+        wallet_display = "♾️ Infinite" if new_wallet >= INF_CASH_AMOUNT else f"`{new_wallet:,}` coins"
+        await ctx.send(embed=success_embed(
+            "Balance Updated",
+            f"✅ Successfully set {target.mention}'s wallet balance to **{wallet_display}**!"
+        ))
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Economy(bot))
+

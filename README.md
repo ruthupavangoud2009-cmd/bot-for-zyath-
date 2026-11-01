@@ -226,6 +226,8 @@ python main.py
 | `$whisper @user <msg>` | Secret Whisper: encrypted message only target can reveal with button! |
 | `$gunlock` / `$glock` | Staff quick channel lock/unlock for giveaway event channels |
 
+> 🔒 **Minigames Infinite Cash Feature:** Only official bot owners can add **infinite cash** (`inf cash`, `infinite cash`) or infinite coins as minigame prizes. Non-owners attempting to host minigames with infinite cash are strictly denied with an access error.
+
 ### 👑 Bot Management & Owner Suite
 | Command | Description |
 |---|---|
@@ -241,6 +243,9 @@ python main.py
 | `$checkperms` | Comprehensive server permissions audit |
 | `$reload <cog\|all>` | Hot reload cogs without downtime |
 | `$sync` | Globally synchronize Discord slash command tree |
+| `$infcash [@user]` | **Owner-Only**: Grant unlimited infinite minigame cash (♾️) to self or member |
+| `$addcash @user <amount\|inf>` | **Owner-Only**: Add coin amount or infinite cash to user wallet |
+| `$setcash @user <amount\|inf>` | **Owner-Only**: Set exact coin balance or infinite cash |
 
 ### 🤝 Middleman & Trades ($mercy)
 | Command | Description |
@@ -307,9 +312,12 @@ python main.py
 | `$deposit <amount\|all>` | Store wallet coins in safe bank vault |
 | `$withdraw <amount\|all>` | Withdraw coins from bank vault |
 | `$pay @user <amount>` | Transfer coins to another member |
-| `$slots <bet>` | Spin 3-reel casino slot machine for up to 10x jackpot |
-| `$gamble <bet>` / `$bet` | High-stakes roll against the house |
+| `$slots <bet>` | Spin 3-reel casino slot machine for up to 10x jackpot (Supports `inf` for owners) |
+| `$gamble <bet>` / `$bet` | High-stakes roll against the house (Supports `inf` for owners) |
 | `$baltop` / `$rich` | Top 10 richest server leaderboard |
+| `$infcash [@user]` | Grant unlimited infinite cash (`♾️`) for minigames & casino (Bot Owner Only) |
+| `$addcash @user <amount\|inf>` | Add coins or infinite cash to a user's wallet (Bot Owner Only) |
+| `$setcash @user <amount\|inf>` | Set exact wallet balance (Bot Owner Only) |
 
 ### 🛠️ All-In-One Utility Suite
 | Command | Description |

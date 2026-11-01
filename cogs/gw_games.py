@@ -4,8 +4,63 @@ from discord import app_commands
 import random
 import asyncio
 import time
+import re
 from typing import Optional, Dict, Any, List
 from utils.embeds import standard_embed, success_embed, error_embed, info_embed
+from utils.config_manager import check_is_owner
+from cogs.economy import INF_CASH_AMOUNT
+
+def is_inf_cash_str(prize_str: str) -> bool:
+    """Detect if a prize specifies infinite cash/money/coins."""
+    if not prize_str:
+        return False
+    lower = prize_str.lower().strip()
+    if lower in ["inf", "infinite", "infinity", "♾️", "inf$", "$inf"]:
+        return True
+    patterns = [
+        "inf cash", "infinite cash", "inf money", "infinite money",
+        "inf coin", "infinite coin", "infinity cash", "infinity money",
+        "inf balance", "infinite balance", "unlimited cash", "unlimited money",
+        "inf eco", "infinite eco", "♾️ cash", "♾️ coin"
+    ]
+    return any(p in lower for p in patterns)
+
+
+async def validate_minigame_prize(ctx: commands.Context, prize_str: str) -> bool:
+    """Ensure that only bot owners can add infinite cash in minigames."""
+    if is_inf_cash_str(prize_str):
+        if not await check_is_owner(ctx.bot, ctx.author):
+            await ctx.send(embed=error_embed(
+                "Restricted Prize",
+                "⛔ **Access Denied:** Only bot owners can add **infinite cash** in minigames!"
+            ))
+            return False
+    return True
+
+async def process_minigame_win(guild_id: int, winner: discord.Member, prize: str) -> Optional[str]:
+    """Awards cash or infinite cash to winner if the prize specifies economy currency."""
+    if not winner or not prize:
+        return None
+    try:
+        from utils.database import db
+        if is_inf_cash_str(prize):
+            await db.update_economy(guild_id, winner.id, wallet=INF_CASH_AMOUNT, bank_max=INF_CASH_AMOUNT)
+            return f"♾️ **Infinite Cash** (`{INF_CASH_AMOUNT:,}` coins) has been credited to {winner.mention}'s wallet!"
+
+        m = re.search(r'(\d[\d,]*)\s*(?:coins?|cash|\$|credits?)', prize, re.IGNORECASE) or re.search(r'\$\s*(\d[\d,]*)', prize)
+        if m:
+            val_str = m.group(1).replace(",", "")
+            if val_str.isdigit():
+                val = int(val_str)
+                if val > 0:
+                    eco = await db.get_economy(guild_id, winner.id)
+                    new_wallet = min(INF_CASH_AMOUNT, eco["wallet"] + val)
+                    await db.update_economy(guild_id, winner.id, wallet=new_wallet)
+                    return f"🪙 **+{val:,} coins** deposited directly into {winner.mention}'s wallet!"
+    except Exception as e:
+        print(f"[MINIGAME REWARD ERROR] {e}")
+    return None
+
 
 # --- Word List for Scramble ---
 SCRAMBLE_WORDS = [
@@ -154,6 +209,9 @@ class GWGames(commands.Cog):
     @commands.has_permissions(manage_channels=True)
     async def start_gtn(self, ctx: commands.Context, min_val: int = 1, max_val: int = 1000, *, prize: str = "Bragging Rights"):
         """Start GTN with +/- reactions, DM secret answer to host, prize support, and auto-lock on win."""
+        if not await validate_minigame_prize(ctx, prize):
+            return
+
         if min_val >= max_val:
             return await ctx.send(embed=error_embed("Invalid Range", "Minimum value must be less than maximum value."))
         if max_val - min_val < 5:
@@ -269,6 +327,9 @@ class GWGames(commands.Cog):
     @commands.has_permissions(manage_channels=True)
     async def start_scramble(self, ctx: commands.Context, *, prize: str = "Discord Nitro"):
         """Scramble a word; first user to unscramble and type it wins!"""
+        if not await validate_minigame_prize(ctx, prize):
+            return
+
         if ctx.channel.id in self.active_scramble:
             return await ctx.send(embed=error_embed("Game Active", "A Word Scramble game is already running in this channel!\nUse `$scramblestop` to end it."))
 
@@ -329,6 +390,8 @@ class GWGames(commands.Cog):
             delay_sec = max(1, min(30, int(args_list.pop(0))))
 
         prize = " ".join(args_list).strip() or "Discord Nitro"
+        if not await validate_minigame_prize(ctx, prize):
+            return
 
         prep_msg = await ctx.send(embed=standard_embed(
             title="⚡ Reaction Drop Incoming!",
@@ -367,12 +430,14 @@ class GWGames(commands.Cog):
 
                 # Lock channel
                 await self.parent_cog._lock_channel(interaction.channel, f"Drop won by {interaction.user}")
+                reward_msg = await process_minigame_win(interaction.guild_id, interaction.user, prize)
+                reward_str = f"\n💎 **Auto-Reward:** {reward_msg}" if reward_msg else ""
 
                 win_embed = standard_embed(
                     title="⚡ REACTION DROP CLAIMED! ⚡",
                     description=(
                         f"🎉 Congratulations {interaction.user.mention}!\n\n"
-                        f"🎁 **Prize Won:** **{prize}**\n"
+                        f"🎁 **Prize Won:** **{prize}**{reward_str}\n"
                         f"⚡ **Reaction Speed:** `{elapsed} seconds`\n"
                         f"👑 **Hosted by:** {ctx.author.mention}\n\n"
                         f"🔒 **Channel Status:** Auto-locked to prevent spam!"
@@ -412,6 +477,9 @@ class GWGames(commands.Cog):
     @commands.has_permissions(manage_channels=True)
     async def start_math(self, ctx: commands.Context, difficulty: str = "easy", *, prize: str = "Discord Nitro"):
         """Mental math challenge; first to type correct answer wins and locks channel."""
+        if not await validate_minigame_prize(ctx, prize):
+            return
+
         if ctx.channel.id in self.active_math:
             return await ctx.send(embed=error_embed("Game Active", "A Math Race is already active in this channel!\nUse `$mathstop` to end it."))
 
@@ -485,6 +553,9 @@ class GWGames(commands.Cog):
             lobby_time = max(10, min(120, int(args_list.pop(0))))
 
         prize = " ".join(args_list).strip() or "Discord Nitro"
+        if not await validate_minigame_prize(ctx, prize):
+            return
+
         players = set()
         players.add(ctx.author)  # Host joins by default
 
@@ -567,13 +638,15 @@ class GWGames(commands.Cog):
         # Final Champion!
         champion = arena[0]
         await self._lock_channel(ctx.channel, f"Rumble won by {champion}")
+        reward_msg = await process_minigame_win(ctx.guild.id, champion, prize)
+        reward_str = f"\n💎 **Auto-Reward:** {reward_msg}" if reward_msg else ""
 
         champ_embed = standard_embed(
             title="👑 RUMBLE CHAMPION CROWNED! 👑",
             description=(
                 f"🎉 Hail to the ultimate victor: {champion.mention}!\n\n"
                 f"🏆 **Title:** Rumble Arena Champion\n"
-                f"🎁 **Prize Won:** **{prize}**\n"
+                f"🎁 **Prize Won:** **{prize}**{reward_str}\n"
                 f"⚔️ **Warriors Defeated:** `{len(players) - 1}`\n"
                 f"👑 **Hosted by:** {ctx.author.mention}\n\n"
                 f"🔒 **Channel Status:** Automatically locked!"
@@ -606,6 +679,9 @@ class GWGames(commands.Cog):
     @commands.has_permissions(manage_channels=True)
     async def start_trivia(self, ctx: commands.Context, *, prize: str = "Discord Nitro"):
         """Drop a trivia question with buttons. First correct click wins prize and locks channel!"""
+        if not await validate_minigame_prize(ctx, prize):
+            return
+
         item = random.choice(TRIVIA_QUESTIONS)
         question = item["q"]
         options = item["options"]
@@ -645,6 +721,8 @@ class GWGames(commands.Cog):
 
                     await interaction.response.edit_message(view=self)
                     await parent_cog._lock_channel(interaction.channel, f"Trivia won by {interaction.user}")
+                    reward_msg = await process_minigame_win(interaction.guild_id, interaction.user, prize)
+                    reward_str = f"\n💎 **Auto-Reward:** {reward_msg}" if reward_msg else ""
 
                     win_embed = standard_embed(
                         title="🧠 TRIVIA WINNER! 🧠",
@@ -652,7 +730,7 @@ class GWGames(commands.Cog):
                             f"🎉 Congratulations {interaction.user.mention}!\n\n"
                             f"❓ **Question:** *{question}*\n"
                             f"✅ **Correct Answer:** **{options[correct_idx]}**\n\n"
-                            f"🎁 **Prize Won:** **{prize}**\n"
+                            f"🎁 **Prize Won:** **{prize}**{reward_str}\n"
                             f"👑 **Hosted by:** {ctx.author.mention}\n\n"
                             f"🔒 **Channel Status:** Automatically locked!"
                         ),
@@ -695,6 +773,9 @@ class GWGames(commands.Cog):
             roll_time = max(10, min(60, int(args_list.pop(0)[:-1])))
 
         prize = " ".join(args_list).strip() or "Discord Nitro"
+        if not await validate_minigame_prize(ctx, prize):
+            return
+
         rolls: Dict[int, tuple[discord.User, int]] = {}
         end_time = int(time.time()) + roll_time
 
@@ -735,6 +816,8 @@ class GWGames(commands.Cog):
         winner_user, win_score = sorted_rolls[0]
 
         await self._lock_channel(ctx.channel, f"High roll won by {winner_user}")
+        reward_msg = await process_minigame_win(ctx.guild.id, winner_user, prize)
+        reward_str = f"\n💎 **Auto-Reward:** {reward_msg}" if reward_msg else ""
 
         leaderboard_str = "\n".join([f"• {u.mention}: **{s}**" for u, s in sorted_rolls[:5]])
 
@@ -742,7 +825,7 @@ class GWGames(commands.Cog):
             title="🎲 HIGH ROLL WINNER! 🎲",
             description=(
                 f"🎉 Congratulations {winner_user.mention} with a roll of **{win_score}**!\n\n"
-                f"🎁 **Prize Won:** **{prize}**\n"
+                f"🎁 **Prize Won:** **{prize}**{reward_str}\n"
                 f"📊 **Top 5 Rollers:**\n{leaderboard_str}\n\n"
                 f"🔒 **Channel Status:** Automatically locked!"
             ),
@@ -787,6 +870,9 @@ class GWGames(commands.Cog):
     @commands.has_permissions(manage_channels=True)
     async def start_blacktea(self, ctx: commands.Context, *, prize: str = "Discord Nitro"):
         """Multiplayer word bomb. Players have 3 lives and 10 seconds to type a word containing the 3-letter prompt."""
+        if not await validate_minigame_prize(ctx, prize):
+            return
+
         if ctx.channel.id in self.active_blacktea:
             return await ctx.send(embed=error_embed("Game Active", "A BlackTea game is already active in this channel!\nUse `$blackteastop` to end it."))
 
@@ -926,13 +1012,15 @@ class GWGames(commands.Cog):
             if len(game_state["players"]) == 1:
                 champion = game_state["players"][0]["member"]
                 await parent_cog._lock_channel(ctx.channel, f"BlackTea won by {champion}")
+                reward_msg = await process_minigame_win(ctx.guild.id, champion, prize)
+                reward_str = f"\n💎 **Auto-Reward:** {reward_msg}" if reward_msg else ""
 
                 win_embed = standard_embed(
                     title="👑 BLACKTEA CHAMPION CROWNED! 👑",
                     description=(
                         f"🎉 Hail to the word master: {champion.mention}!\n\n"
                         f"🏆 **Title:** BlackTea Champion\n"
-                        f"🎁 **Prize Won:** **{prize}**\n"
+                        f"🎁 **Prize Won:** **{prize}**{reward_str}\n"
                         f"📚 **Total Words Used in Game:** `{len(game_state['used_words'])}`\n"
                         f"👑 **Hosted by:** {ctx.author.mention}\n\n"
                         f"🔒 **Channel Status:** Automatically locked!"
@@ -976,6 +1064,9 @@ class GWGames(commands.Cog):
     @commands.has_permissions(manage_channels=True)
     async def start_roulette(self, ctx: commands.Context, *, prize: str = "Discord Nitro"):
         """Russian Roulette: 6 chambers, 1 bullet. Players take turns pulling trigger until 1 survivor remains!"""
+        if not await validate_minigame_prize(ctx, prize):
+            return
+
         if ctx.channel.id in self.active_roulette:
             return await ctx.send(embed=error_embed("Game Active", "A Roulette game is already running in this channel!"))
 
@@ -1080,12 +1171,14 @@ class GWGames(commands.Cog):
             if len(players) == 1:
                 survivor = players[0]
                 await parent_cog._lock_channel(ctx.channel, f"Roulette won by {survivor}")
+                reward_msg = await process_minigame_win(ctx.guild.id, survivor, prize)
+                reward_str = f"\n💎 **Auto-Reward:** {reward_msg}" if reward_msg else ""
 
                 win_embed = standard_embed(
                     title="👑 ROULETTE SOLE SURVIVOR! 👑",
                     description=(
                         f"🎉 {survivor.mention} survived the cylinder!\n\n"
-                        f"🎁 **Prize Won:** **{prize}**\n"
+                        f"🎁 **Prize Won:** **{prize}**{reward_str}\n"
                         f"👑 **Hosted by:** {ctx.author.mention}\n\n"
                         f"🔒 **Channel Status:** Automatically locked!"
                     ),
@@ -1107,6 +1200,9 @@ class GWGames(commands.Cog):
     )
     async def tictactoe_cmd(self, ctx: commands.Context, opponent: discord.Member, *, prize: str = "Bragging Rights"):
         """Interactive 3x3 button Tic-Tac-Toe PvP duel."""
+        if not await validate_minigame_prize(ctx, prize):
+            return
+
         if opponent.bot or opponent.id == ctx.author.id:
             return await ctx.send(embed=error_embed("Invalid Opponent", "Please mention a real other member to play against!"))
 
@@ -1169,9 +1265,11 @@ class GWGames(commands.Cog):
                             await inter.response.edit_message(content=f"🏆 **{winner.mention} WON TIC-TAC-TOE!**", view=self)
                             if prize != "Bragging Rights":
                                 await parent_cog._lock_channel(ctx.channel, f"TTT won by {winner}")
+                                reward_msg = await process_minigame_win(ctx.guild.id, winner, prize)
+                                reward_str = f"\n💎 **Auto-Reward:** {reward_msg}" if reward_msg else ""
                                 await ctx.send(embed=standard_embed(
                                     title="🎉 TIC-TAC-TOE VICTORY! 🎉",
-                                    description=f"Congratulations {winner.mention}!\n🎁 **Prize:** **{prize}**\n🔒 Channel locked!",
+                                    description=f"Congratulations {winner.mention}!\n🎁 **Prize:** **{prize}**{reward_str}\n🔒 Channel locked!",
                                     color=0x57F287
                                 ))
                     else:
@@ -1192,6 +1290,9 @@ class GWGames(commands.Cog):
     )
     async def rps_cmd(self, ctx: commands.Context, opponent: Optional[discord.Member] = None, *, prize: str = "Bragging Rights"):
         """Interactive Rock Paper Scissors with button controls."""
+        if not await validate_minigame_prize(ctx, prize):
+            return
+
         choices = {"rock": "🪨 Rock", "paper": "📄 Paper", "scissors": "✂️ Scissors"}
         rules = {"rock": "scissors", "paper": "rock", "scissors": "paper"}
 
@@ -1259,10 +1360,14 @@ class GWGames(commands.Cog):
                             res_txt = f"🤝 **It's a TIE!** Both players chose **{choices[p1_pick]}**!"
                             col = 0xFEE75C
                         elif rules[p1_pick] == p2_pick:
-                            res_txt = f"🏆 **{ctx.author.mention} WINS!**\n{choices[p1_pick]} beats {choices[p2_pick]}!\n🎁 Prize: **{prize}**"
+                            reward_msg = await process_minigame_win(ctx.guild.id, ctx.author, prize)
+                            reward_str = f"\n💎 **Auto-Reward:** {reward_msg}" if reward_msg else ""
+                            res_txt = f"🏆 **{ctx.author.mention} WINS!**\n{choices[p1_pick]} beats {choices[p2_pick]}!\n🎁 Prize: **{prize}**{reward_str}"
                             col = 0x57F287
                         else:
-                            res_txt = f"🏆 **{opponent.mention} WINS!**\n{choices[p2_pick]} beats {choices[p1_pick]}!\n🎁 Prize: **{prize}**"
+                            reward_msg = await process_minigame_win(ctx.guild.id, opponent, prize)
+                            reward_str = f"\n💎 **Auto-Reward:** {reward_msg}" if reward_msg else ""
+                            res_txt = f"🏆 **{opponent.mention} WINS!**\n{choices[p2_pick]} beats {choices[p1_pick]}!\n🎁 Prize: **{prize}**{reward_str}"
                             col = 0x57F287
 
                         await ctx.send(embed=standard_embed(title="🎮 RPS Duel Result!", description=res_txt, color=col))
@@ -1294,6 +1399,9 @@ class GWGames(commands.Cog):
     )
     async def blackjack_cmd(self, ctx: commands.Context, *, prize: str = "Discord Nitro"):
         """Interactive Casino Blackjack 21."""
+        if not await validate_minigame_prize(ctx, prize):
+            return
+
         ranks = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
         suits = ["♠", "♥", "♦", "♣"]
         deck = [f"{r}{s}" for r in ranks for s in suits]
@@ -1394,9 +1502,13 @@ class GWGames(commands.Cog):
                 final_d = hand_val(dealer_hand)
 
                 if final_d > 21:
-                    note = "🎉 **DEALER BUST!** You win the hand!"
+                    reward_msg = await process_minigame_win(ctx.guild.id, ctx.author, prize)
+                    reward_str = f"\n💎 **Auto-Reward:** {reward_msg}" if reward_msg else ""
+                    note = f"🎉 **DEALER BUST!** You win the hand!{reward_str}"
                 elif final_p > final_d:
-                    note = f"🏆 **YOU WIN!** `{final_p}` beats Dealer's `{final_d}`!"
+                    reward_msg = await process_minigame_win(ctx.guild.id, ctx.author, prize)
+                    reward_str = f"\n💎 **Auto-Reward:** {reward_msg}" if reward_msg else ""
+                    note = f"🏆 **YOU WIN!** `{final_p}` beats Dealer's `{final_d}`!{reward_str}"
                 elif final_p < final_d:
                     note = f"💀 **DEALER WINS!** `{final_d}` beats your `{final_p}`."
                 else:
@@ -1407,12 +1519,14 @@ class GWGames(commands.Cog):
         view = BJView()
         # Initial natural 21 check
         if p_score == 21:
+            reward_msg = await process_minigame_win(ctx.guild.id, ctx.author, prize)
+            reward_str = f"\n💎 **Auto-Reward:** {reward_msg}" if reward_msg else ""
             emb = standard_embed(
                 title="🃏 Casino Blackjack 21",
                 description=(
                     f"**Dealer's Hand:** {' '.join(dealer_hand)} (`{hand_val(dealer_hand)}`)\n"
                     f"**Your Hand:** {' '.join(player_hand)} (`21`)\n\n"
-                    f"✨ **NATURAL BLACKJACK! YOU WIN!** ✨"
+                    f"✨ **NATURAL BLACKJACK! YOU WIN!** ✨{reward_str}"
                 ),
                 color=0x57F287
             )
@@ -1563,13 +1677,15 @@ class GWGames(commands.Cog):
                         # WINNER!
                         del self.active_gtn[ch_id]
                         await self._lock_channel(message.channel, "GTN Winner found - channel locked")
+                        reward_msg = await process_minigame_win(message.guild.id, message.author, game['prize'])
+                        reward_str = f"\n💎 **Auto-Reward:** {reward_msg}" if reward_msg else ""
 
                         win_emb = standard_embed(
                             title="🎉 WE HAVE A WINNER! 🎉",
                             description=(
                                 f"Congratulations {message.author.mention}!\n\n"
                                 f"🎯 **Correct Number:** `{target}`\n"
-                                f"🎁 **Prize:** **{game['prize']}**\n"
+                                f"🎁 **Prize:** **{game['prize']}**{reward_str}\n"
                                 f"📊 **Total Guesses:** `{game['guesses']}`\n"
                                 f"👑 **Hosted by:** <@{game['starter']}>\n\n"
                                 f"🔒 **Channel Status:** Automatically locked!"
@@ -1581,9 +1697,10 @@ class GWGames(commands.Cog):
                         await message.channel.send(content=f"👑 {message.author.mention}", embed=win_emb)
 
                         try:
+                            dm_reward_text = f"\n{reward_msg}" if reward_msg else f"\nContact <@{game['starter']}> to claim your reward."
                             dm_emb = standard_embed(
                                 title="🎯 GTN Victory!",
-                                description=f"You guessed `{target}` correctly in **{message.guild.name}** and won **{game['prize']}**!\nContact <@{game['starter']}> to claim your reward.",
+                                description=f"You guessed `{target}` correctly in **{message.guild.name}** and won **{game['prize']}**!{dm_reward_text}",
                                 color=0x57F287
                             )
                             await message.author.send(embed=dm_emb)
@@ -1599,13 +1716,15 @@ class GWGames(commands.Cog):
             if content.upper() == target_word:
                 del self.active_scramble[ch_id]
                 await self._lock_channel(message.channel, "Word Scramble won")
+                reward_msg = await process_minigame_win(message.guild.id, message.author, game['prize'])
+                reward_str = f"\n💎 **Auto-Reward:** {reward_msg}" if reward_msg else ""
 
                 win_emb = standard_embed(
                     title="🧩 SCRAMBLE SOLVED! 🧩",
                     description=(
                         f"🎉 Congratulations {message.author.mention}!\n\n"
                         f"🔤 **Unscrambled Word:** **{target_word}**\n"
-                        f"🎁 **Prize:** **{game['prize']}**\n"
+                        f"🎁 **Prize:** **{game['prize']}**{reward_str}\n"
                         f"👑 **Hosted by:** <@{game['starter']}>\n\n"
                         f"🔒 **Channel Status:** Automatically locked!"
                     ),
@@ -1616,9 +1735,10 @@ class GWGames(commands.Cog):
                 await message.channel.send(content=f"👑 {message.author.mention}", embed=win_emb)
 
                 try:
+                    dm_reward_text = f"\n{reward_msg}" if reward_msg else f"\nContact <@{game['starter']}> to claim your reward."
                     dm_emb = standard_embed(
                         title="🧩 Scramble Victory!",
-                        description=f"You solved **{target_word}** in **{message.guild.name}** and won **{game['prize']}**!\nContact <@{game['starter']}> to claim your reward.",
+                        description=f"You solved **{target_word}** in **{message.guild.name}** and won **{game['prize']}**!{dm_reward_text}",
                         color=0x57F287
                     )
                     await message.author.send(embed=dm_emb)
@@ -1634,13 +1754,15 @@ class GWGames(commands.Cog):
                     if num_val == game["answer"]:
                         del self.active_math[ch_id]
                         await self._lock_channel(message.channel, "Math Race won")
+                        reward_msg = await process_minigame_win(message.guild.id, message.author, game['prize'])
+                        reward_str = f"\n💎 **Auto-Reward:** {reward_msg}" if reward_msg else ""
 
                         win_emb = standard_embed(
                             title="🧮 MATH RACE WINNER! 🧮",
                             description=(
                                 f"🎉 Congratulations {message.author.mention}!\n\n"
                                 f"📊 **Equation:** `{game['equation']} = {game['answer']}`\n"
-                                f"🎁 **Prize:** **{game['prize']}**\n"
+                                f"🎁 **Prize:** **{game['prize']}**{reward_str}\n"
                                 f"👑 **Hosted by:** <@{game['starter']}>\n\n"
                                 f"🔒 **Channel Status:** Automatically locked!"
                             ),
@@ -1651,9 +1773,10 @@ class GWGames(commands.Cog):
                         await message.channel.send(content=f"👑 {message.author.mention}", embed=win_emb)
 
                         try:
+                            dm_reward_text = f"\n{reward_msg}" if reward_msg else f"\nContact <@{game['starter']}> to claim your reward."
                             dm_emb = standard_embed(
                                 title="🧮 Math Race Victory!",
-                                description=f"You solved `{game['equation']} = {game['answer']}` in **{message.guild.name}** and won **{game['prize']}**!\nContact <@{game['starter']}> to claim your reward.",
+                                description=f"You solved `{game['equation']} = {game['answer']}` in **{message.guild.name}** and won **{game['prize']}**!{dm_reward_text}",
                                 color=0x57F287
                             )
                             await message.author.send(embed=dm_emb)

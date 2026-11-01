@@ -9,6 +9,9 @@ import urllib.parse
 from typing import Optional
 from utils.embeds import standard_embed, success_embed, error_embed, info_embed
 from utils.database import db
+from utils.config_manager import check_is_owner
+from cogs.economy import INF_CASH_AMOUNT
+from cogs.gw_games import is_inf_cash_str
 from cogs.help import HelpView
 from cogs.tickets import TicketPanelView, CreateEmbedModal
 from cogs.trades import TradeStatusView, MercyModal
@@ -226,6 +229,12 @@ class SlashCommands(commands.Cog):
     @app_commands.describe(min_val="Minimum number", max_val="Maximum number", prize="Prize for the winner")
     @app_commands.default_permissions(manage_channels=True)
     async def slash_gtn(self, interaction: discord.Interaction, min_val: int = 1, max_val: int = 1000, prize: str = "Discord Nitro"):
+        if is_inf_cash_str(prize) and not await check_is_owner(self.bot, interaction.user):
+            return await interaction.response.send_message(
+                embed=error_embed("Restricted Prize", "⛔ **Access Denied:** Only bot owners can add **infinite cash** in minigames!"),
+                ephemeral=True
+            )
+
         cog = self.bot.get_cog("GWGames") or self.bot.get_cog("GuessTheNumber")
         if not cog:
             return await interaction.response.send_message("GTN game cog not loaded.", ephemeral=True)
@@ -567,7 +576,8 @@ class SlashCommands(commands.Cog):
             return await interaction.response.send_message(embed=error_embed("Invalid Bet", "Minimum bet is 10 coins."), ephemeral=True)
 
         eco = await db.get_economy(interaction.guild_id, interaction.user.id)
-        if eco["wallet"] < bet:
+        has_inf = eco["wallet"] >= INF_CASH_AMOUNT
+        if eco["wallet"] < bet and not has_inf:
             return await interaction.response.send_message(
                 embed=error_embed("Insufficient Funds", f"You only have **{eco['wallet']:,}** coins in your wallet!"),
                 ephemeral=True
@@ -579,43 +589,50 @@ class SlashCommands(commands.Cog):
         if reels[0] == reels[1] == reels[2]:
             multiplier = 10 if reels[0] == "7️⃣" else (7 if reels[0] == "💎" else 4)
             winnings = bet * multiplier
-            await db.update_economy(interaction.guild_id, interaction.user.id, wallet_delta=winnings)
+            new_wallet = INF_CASH_AMOUNT if has_inf else eco["wallet"] + winnings
+            await db.update_economy(interaction.guild_id, interaction.user.id, wallet=new_wallet)
+            bal_str = "♾️ Infinite" if new_wallet >= INF_CASH_AMOUNT else f"`{new_wallet:,}` coins"
             embed = standard_embed(
                 title="🎰 CASINO SLOTS — JACKPOT! 🎰",
                 description=(
                     f"**[ {reels[0]} | {reels[1]} | {reels[2]} ]**\n\n"
                     f"🎉 **TRIPLE MATCH!** You won **+{winnings:,} coins** ({multiplier}x payout)!\n"
-                    f"🪙 **New Wallet:** `{eco['wallet'] + winnings:,}` coins"
+                    f"🪙 **New Wallet:** {bal_str}"
                 ),
                 color=0x57F287,
                 thumbnail=interaction.user.display_avatar.url
             )
         elif reels[0] == reels[1] or reels[1] == reels[2] or reels[0] == reels[2]:
             winnings = int(bet * 1.5)
-            await db.update_economy(interaction.guild_id, interaction.user.id, wallet_delta=winnings - bet)
+            new_wallet = INF_CASH_AMOUNT if has_inf else eco["wallet"] + (winnings - bet)
+            await db.update_economy(interaction.guild_id, interaction.user.id, wallet=new_wallet)
+            bal_str = "♾️ Infinite" if new_wallet >= INF_CASH_AMOUNT else f"`{new_wallet:,}` coins"
             embed = standard_embed(
                 title="🎰 CASINO SLOTS — NICE WIN! 🎰",
                 description=(
                     f"**[ {reels[0]} | {reels[1]} | {reels[2]} ]**\n\n"
                     f"✨ **DOUBLE MATCH!** You won **+{winnings:,} coins** (1.5x)!\n"
-                    f"🪙 **New Wallet:** `{eco['wallet'] + (winnings - bet):,}` coins"
+                    f"🪙 **New Wallet:** {bal_str}"
                 ),
                 color=0xFEE75C,
                 thumbnail=interaction.user.display_avatar.url
             )
         else:
-            await db.update_economy(interaction.guild_id, interaction.user.id, wallet_delta=-bet)
+            new_wallet = INF_CASH_AMOUNT if has_inf else max(0, eco["wallet"] - bet)
+            await db.update_economy(interaction.guild_id, interaction.user.id, wallet=new_wallet)
+            bal_str = "♾️ Infinite" if new_wallet >= INF_CASH_AMOUNT else f"`{new_wallet:,}` coins"
             embed = standard_embed(
                 title="🎰 CASINO SLOTS — NO MATCH 🎰",
                 description=(
                     f"**[ {reels[0]} | {reels[1]} | {reels[2]} ]**\n\n"
                     f"❌ Better luck next spin! You lost **-{bet:,} coins**.\n"
-                    f"🪙 **New Wallet:** `{eco['wallet'] - bet:,}` coins"
+                    f"🪙 **New Wallet:** {bal_str}"
                 ),
                 color=0xED4245,
                 thumbnail=interaction.user.display_avatar.url
             )
         await interaction.response.send_message(embed=embed)
+
 
     # 28. /afk
     @app_commands.command(name="afk", description="Set your AFK status with an optional reason.")
@@ -804,5 +821,91 @@ class SlashCommands(commands.Cog):
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    # 36. /infcash (Owner Only)
+    @app_commands.command(name="infcash", description="[Bot Owner Only] Grant infinite minigame cash to a user.")
+    @app_commands.describe(user="User to grant infinite cash to (defaults to yourself)")
+    async def slash_infcash(self, interaction: discord.Interaction, user: Optional[discord.Member] = None):
+        if not await check_is_owner(self.bot, interaction.user):
+            return await interaction.response.send_message(
+                embed=error_embed(
+                    "Access Denied",
+                    "⛔ **Restricted Feature:** Only bot owners can add **infinite cash** in minigames!"
+                ),
+                ephemeral=True
+            )
+
+        target = user or interaction.user
+        await db.update_economy(
+            interaction.guild_id,
+            target.id,
+            wallet=INF_CASH_AMOUNT,
+            bank=INF_CASH_AMOUNT,
+            bank_max=INF_CASH_AMOUNT
+        )
+
+        embed = standard_embed(
+            title="♾️ Infinite Cash Activated!",
+            description=(
+                f"🌟 Successfully granted **Infinite Minigame Funds** to {target.mention}!\n\n"
+                f"🪙 **Wallet:** `♾️ Infinite` (`{INF_CASH_AMOUNT:,}` coins)\n"
+                f"🏦 **Bank Vault:** `♾️ Infinite` (`{INF_CASH_AMOUNT:,}` coins)\n\n"
+                f"🎮 **Minigames & Casino Status:** Unlimited betting enabled for Slots, Gamble, BlackTea, Roulette, and GW games!"
+            ),
+            color=0x57F287
+        )
+        embed.set_thumbnail(url=target.display_avatar.url)
+        embed.set_footer(text=f"Authorized by Bot Owner: {interaction.user.display_name}")
+        await interaction.response.send_message(embed=embed)
+
+    # 37. /addcash (Owner Only)
+    @app_commands.command(name="addcash", description="[Bot Owner Only] Add cash or infinite cash to a user.")
+    @app_commands.describe(user="User to receive cash", amount="Numeric coins or 'inf' for infinite cash")
+    async def slash_addcash(self, interaction: discord.Interaction, user: discord.Member, amount: str):
+        if not await check_is_owner(self.bot, interaction.user):
+            return await interaction.response.send_message(
+                embed=error_embed(
+                    "Access Denied",
+                    "⛔ **Restricted Feature:** Only bot owners can add cash in minigames and economy!"
+                ),
+                ephemeral=True
+            )
+
+        clean_amt = amount.lower().strip()
+        eco = await db.get_economy(interaction.guild_id, user.id)
+
+        if clean_amt in ["inf", "infinite", "infinity", "max"]:
+            new_wallet = INF_CASH_AMOUNT
+            new_bank_max = INF_CASH_AMOUNT
+            await db.update_economy(interaction.guild_id, user.id, wallet=new_wallet, bank_max=new_bank_max)
+            return await interaction.response.send_message(embed=success_embed(
+                "Infinite Cash Added",
+                f"♾️ Granted **Infinite Cash** (`{INF_CASH_AMOUNT:,}` coins) to {user.mention}!\n🪙 **Wallet:** `♾️ Infinite`"
+            ))
+
+        clean_num = clean_amt.replace(",", "").replace("$", "")
+        if not clean_num.isdigit():
+            return await interaction.response.send_message(
+                embed=error_embed("Invalid Amount", "Please specify a valid numeric coin amount or `inf`."),
+                ephemeral=True
+            )
+
+        added = int(clean_num)
+        if added <= 0:
+            return await interaction.response.send_message(
+                embed=error_embed("Invalid Amount", "Amount must be greater than 0."),
+                ephemeral=True
+            )
+
+        new_wallet = min(INF_CASH_AMOUNT, eco["wallet"] + added)
+        await db.update_economy(interaction.guild_id, user.id, wallet=new_wallet)
+
+        wallet_display = "♾️ Infinite" if new_wallet >= INF_CASH_AMOUNT else f"`{new_wallet:,}` coins"
+        await interaction.response.send_message(embed=success_embed(
+            "Cash Added",
+            f"💵 Added **+{added:,} coins** to {user.mention}'s wallet!\n🪙 **New Wallet Balance:** {wallet_display}"
+        ))
+
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(SlashCommands(bot))
+

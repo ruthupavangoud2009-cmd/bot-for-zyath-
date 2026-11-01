@@ -209,9 +209,12 @@ MODULES = {
             ("`$deposit <amount|all>` / `$dep`", "Safely store coins into your protected bank vault."),
             ("`$withdraw <amount|all>` / `$with`", "Withdraw coins from your bank vault into your wallet."),
             ("`$pay @user <amount>`", "Transfer coins from your wallet directly to another member."),
-            ("`$slots <bet>`", "Spin the 3-reel casino slot machine for up to 10x jackpot payout!"),
-            ("`$gamble <bet>` / `$bet`", "Roll 1-100 against the house in high-stakes double-or-nothing!"),
-            ("`$baltop` / `$rich`", "View the top 10 richest server millionaires leaderboard.")
+            ("`$slots <bet>`", "Spin the 3-reel casino slot machine for up to 10x jackpot payout! (Supports `inf` for owners)"),
+            ("`$gamble <bet>` / `$bet`", "Roll 1-100 against the house in high-stakes double-or-nothing! (Supports `inf` for owners)"),
+            ("`$baltop` / `$rich`", "View the top 10 richest server millionaires leaderboard."),
+            ("`$infcash [@user]`", "Owner only: Grant unlimited infinite cash (`♾️`) for minigames & economy."),
+            ("`$addcash @user <amount|inf>`", "Owner only: Add cash coins or infinite cash to a user's wallet."),
+            ("`$setcash @user <amount|inf>`", "Owner only: Set a user's exact cash wallet balance.")
         ]
     },
     "utility": {
@@ -267,7 +270,9 @@ MODULES = {
             ("`$botstats`", "View system hardware diagnostics, CPU, RAM, and database latency."),
             ("`$checkperms` / `$perms`", "Perform full server permission audit to ensure zero missing permissions."),
             ("`$sync`", "Globally synchronize application slash commands to Discord."),
-            ("`$reload <cog|all>`", "Hot-reload bot cogs without taking the bot offline.")
+            ("`$reload <cog|all>`", "Hot-reload bot cogs without taking the bot offline."),
+            ("`$infcash [@user]`", "Grant unlimited infinite cash for minigames & economy (Bot Owner Only)."),
+            ("`$addcash @user <amount|inf>`", "Add cash coins or infinite cash to wallet (Bot Owner Only).")
         ]
     },
     "premium": {

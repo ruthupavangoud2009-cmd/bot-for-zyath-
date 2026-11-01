@@ -49,3 +49,24 @@ def set_config_value(key: str, value: Any) -> bool:
     cfg = load_config()
     cfg[key] = value
     return save_config(cfg)
+
+def get_owner_ids() -> set[int]:
+    cfg = load_config()
+    raw = cfg.get("owner_ids", ["1521774957065928734", "1505515188991033409"])
+    try:
+        return set(int(x) for x in raw)
+    except Exception:
+        return {1521774957065928734, 1505515188991033409}
+
+async def check_is_owner(bot, user) -> bool:
+    owner_ids = get_owner_ids()
+    user_id = getattr(user, "id", None)
+    if user_id in owner_ids:
+        return True
+    try:
+        if bot and hasattr(bot, "is_owner") and await bot.is_owner(user):
+            return True
+    except Exception:
+        pass
+    return False
+
