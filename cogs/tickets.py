@@ -417,7 +417,8 @@ class TicketPanelView(discord.ui.View):
         client_id = bot_user_id or 1521774957065928734
         invite_url = f"https://discord.com/oauth2/authorize?client_id={client_id}&permissions=8&scope=bot%20applications.commands"
         self.add_item(discord.ui.Button(label="Invite Zyath", style=discord.ButtonStyle.link, url=invite_url, emoji="🚀"))
-        self.add_item(discord.ui.Button(label="Support Server", style=discord.ButtonStyle.link, url="https://discord.gg/zyath", emoji="💬"))
+        from utils.config_manager import get_support_server
+        self.add_item(discord.ui.Button(label="Support Server", style=discord.ButtonStyle.link, url=get_support_server(), emoji="💬"))
 
 # --- Cog Class ---
 class Tickets(commands.Cog):

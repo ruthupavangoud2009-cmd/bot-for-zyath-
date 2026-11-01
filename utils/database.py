@@ -140,6 +140,27 @@ CREATE TABLE IF NOT EXISTS ai_settings (
     custom_prompt TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS giveaways (
+    id SERIAL PRIMARY KEY,
+    guild_id BIGINT NOT NULL,
+    channel_id BIGINT NOT NULL,
+    message_id BIGINT NOT NULL UNIQUE,
+    host_id BIGINT NOT NULL,
+    prize TEXT NOT NULL,
+    winners_count INTEGER DEFAULT 1,
+    end_time BIGINT NOT NULL,
+    requirements_role_id BIGINT,
+    status TEXT DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS giveaway_entrants (
+    giveaway_id INTEGER NOT NULL,
+    user_id BIGINT NOT NULL,
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (giveaway_id, user_id)
+);
 """
 
 SQLITE_SCHEMA = """
@@ -259,6 +280,27 @@ CREATE TABLE IF NOT EXISTS ai_settings (
     offline_only BOOLEAN DEFAULT 1,
     custom_prompt TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS giveaways (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id INTEGER NOT NULL,
+    channel_id INTEGER NOT NULL,
+    message_id INTEGER NOT NULL UNIQUE,
+    host_id INTEGER NOT NULL,
+    prize TEXT NOT NULL,
+    winners_count INTEGER DEFAULT 1,
+    end_time INTEGER NOT NULL,
+    requirements_role_id INTEGER,
+    status TEXT DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS giveaway_entrants (
+    giveaway_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (giveaway_id, user_id)
 );
 """
 
@@ -1167,4 +1209,146 @@ class Database:
                 await db.commit()
                 return True
 
+    # ==========================================
+    # GIVEAWAY OPERATIONS
+    # ==========================================
+    async def create_giveaway(
+        self,
+        guild_id: int,
+        channel_id: int,
+        message_id: int,
+        host_id: int,
+        prize: str,
+        winners_count: int,
+        end_time: int,
+        requirements_role_id: Optional[int] = None
+    ) -> Optional[int]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("""
+                    INSERT INTO giveaways (guild_id, channel_id, message_id, host_id, prize, winners_count, end_time, requirements_role_id)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    RETURNING id
+                """, guild_id, channel_id, message_id, host_id, prize, winners_count, end_time, requirements_role_id)
+                return row["id"] if row else None
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("""
+                    INSERT INTO giveaways (guild_id, channel_id, message_id, host_id, prize, winners_count, end_time, requirements_role_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (guild_id, channel_id, message_id, host_id, prize, winners_count, end_time, requirements_role_id))
+                await db.commit()
+                return cursor.lastrowid
+
+    async def get_giveaway(self, message_id: int) -> Optional[Dict[str, Any]]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT * FROM giveaways WHERE message_id = $1", message_id)
+                return dict(row) if row else None
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("SELECT * FROM giveaways WHERE message_id = ?", (message_id,))
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+
+    async def get_giveaway_by_id(self, giveaway_id: int) -> Optional[Dict[str, Any]]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT * FROM giveaways WHERE id = $1", giveaway_id)
+                return dict(row) if row else None
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("SELECT * FROM giveaways WHERE id = ?", (giveaway_id,))
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+
+    async def get_active_giveaways(self, guild_id: Optional[int] = None) -> List[Dict[str, Any]]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                if guild_id:
+                    rows = await conn.fetch("SELECT * FROM giveaways WHERE status = 'active' AND guild_id = $1 ORDER BY end_time ASC", guild_id)
+                else:
+                    rows = await conn.fetch("SELECT * FROM giveaways WHERE status = 'active' ORDER BY end_time ASC")
+                return [dict(r) for r in rows]
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                if guild_id:
+                    cursor = await db.execute("SELECT * FROM giveaways WHERE status = 'active' AND guild_id = ? ORDER BY end_time ASC", (guild_id,))
+                else:
+                    cursor = await db.execute("SELECT * FROM giveaways WHERE status = 'active' ORDER BY end_time ASC")
+                rows = await cursor.fetchall()
+                return [dict(r) for r in rows]
+
+    async def end_giveaway(self, message_id: int, status: str = "ended") -> bool:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                res = await conn.execute("UPDATE giveaways SET status = $1 WHERE message_id = $2", status, message_id)
+                return "UPDATE 1" in res
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("UPDATE giveaways SET status = ? WHERE message_id = ?", (status, message_id))
+                await db.commit()
+                return cursor.rowcount > 0
+
+    async def add_giveaway_entrant(self, giveaway_id: int, user_id: int) -> bool:
+        try:
+            if self.is_postgres and self.pool:
+                async with self.pool.acquire() as conn:
+                    await conn.execute("""
+                        INSERT INTO giveaway_entrants (giveaway_id, user_id)
+                        VALUES ($1, $2)
+                        ON CONFLICT DO NOTHING
+                    """, giveaway_id, user_id)
+                    return True
+            else:
+                async with aiosqlite.connect(self.sqlite_path) as db:
+                    await db.execute("""
+                        INSERT OR IGNORE INTO giveaway_entrants (giveaway_id, user_id)
+                        VALUES (?, ?)
+                    """, (giveaway_id, user_id))
+                    await db.commit()
+                    return True
+        except Exception:
+            return False
+
+    async def remove_giveaway_entrant(self, giveaway_id: int, user_id: int) -> bool:
+        try:
+            if self.is_postgres and self.pool:
+                async with self.pool.acquire() as conn:
+                    res = await conn.execute("DELETE FROM giveaway_entrants WHERE giveaway_id = $1 AND user_id = $2", giveaway_id, user_id)
+                    return "DELETE 1" in res
+            else:
+                async with aiosqlite.connect(self.sqlite_path) as db:
+                    cursor = await db.execute("DELETE FROM giveaway_entrants WHERE giveaway_id = ? AND user_id = ?", (giveaway_id, user_id))
+                    await db.commit()
+                    return cursor.rowcount > 0
+        except Exception:
+            return False
+
+    async def get_giveaway_entrants(self, giveaway_id: int) -> List[int]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT user_id FROM giveaway_entrants WHERE giveaway_id = $1", giveaway_id)
+                return [r["user_id"] for r in rows]
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("SELECT user_id FROM giveaway_entrants WHERE giveaway_id = ?", (giveaway_id,))
+                rows = await cursor.fetchall()
+                return [r[0] for r in rows]
+
+    async def get_giveaway_entrants_count(self, giveaway_id: int) -> int:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                val = await conn.fetchval("SELECT COUNT(*) FROM giveaway_entrants WHERE giveaway_id = $1", giveaway_id)
+                return val or 0
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("SELECT COUNT(*) FROM giveaway_entrants WHERE giveaway_id = ?", (giveaway_id,))
+                row = await cursor.fetchone()
+                return row[0] if row else 0
+
 db = Database()
+

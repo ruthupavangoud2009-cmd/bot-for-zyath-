@@ -218,26 +218,49 @@ class SlashCommands(commands.Cog):
 
     # 12. /gtn
     @app_commands.command(name="gtn", description="Start a Guess The Number game in this channel.")
+    @app_commands.describe(min_val="Minimum number", max_val="Maximum number", prize="Prize for the winner")
     @app_commands.default_permissions(manage_channels=True)
-    async def slash_gtn(self, interaction: discord.Interaction, min_val: int = 1, max_val: int = 1000):
-        cog = self.bot.get_cog("GuessTheNumber")
+    async def slash_gtn(self, interaction: discord.Interaction, min_val: int = 1, max_val: int = 1000, prize: str = "Discord Nitro"):
+        cog = self.bot.get_cog("GWGames") or self.bot.get_cog("GuessTheNumber")
         if not cog:
             return await interaction.response.send_message("GTN game cog not loaded.", ephemeral=True)
         import random
         if min_val >= max_val or max_val - min_val < 5:
             return await interaction.response.send_message(embed=error_embed("Invalid Range", "Min must be less than max (range at least 5)."), ephemeral=True)
-        cog.active_games[interaction.channel_id] = {
-            "target": random.randint(min_val, max_val),
+        
+        target = random.randint(min_val, max_val)
+        game_data = {
+            "target": target,
             "min": min_val,
             "max": max_val,
             "guesses": 0,
-            "starter": interaction.user.id
+            "starter": interaction.user.id,
+            "prize": prize,
+            "highest_low": min_val,
+            "lowest_high": max_val
         }
+        if hasattr(cog, "active_gtn"):
+            cog.active_gtn[interaction.channel_id] = game_data
+        else:
+            cog.active_games[interaction.channel_id] = game_data
+
+        try:
+            await interaction.user.send(f"🎯 **Secret GTN Target:** `{target}` in {interaction.channel.mention} for **{prize}**!")
+        except Exception:
+            pass
+
         embed = standard_embed(
             title="🎮 Guess The Number Started!",
-            description=f"Guess a number between `{min_val}` and `{max_val}`!\n➕ = Guess higher\n➖ = Guess lower\n\nChannel will be locked on win!",
+            description=(
+                f"A new game of **Guess The Number** has begun!\n\n"
+                f"🎁 **Prize:** **{prize}**\n"
+                f"🔢 **Range:** Between `{min_val}` and `{max_val}`\n\n"
+                f"➕ = Higher, ➖ = Lower\n"
+                f"Channel will be locked on win!"
+            ),
             color=0x57F287
         )
+        embed.set_footer(text=f"Host: {interaction.user.display_name} • Good luck!")
         await interaction.response.send_message(embed=embed)
 
     # 13. /ping
@@ -332,6 +355,144 @@ class SlashCommands(commands.Cog):
             return await interaction.response.send_message(embed=error_embed("Permission Denied", "Cannot ban higher or equal role."), ephemeral=True)
         await member.ban(reason=f"{interaction.user}: {reason}")
         await interaction.response.send_message(embed=success_embed("Banned", f"🔨 {member.mention} has been banned."))
+
+    # 21. /support
+    @app_commands.command(name="support", description="Get the official bot support server link.")
+    async def slash_support(self, interaction: discord.Interaction):
+        from utils.config_manager import get_support_server
+        support_url = get_support_server()
+        bot_name = self.bot.user.name if self.bot.user else "Zyath Bot"
+
+        embed = standard_embed(
+            title=f"💬 {bot_name} Official Support Server",
+            description=(
+                f"Need assistance, want to report a bug, or request a feature?\n\n"
+                f"Join our official support server for 24/7 staff help, announcements, updates, and community events!\n\n"
+                f"🔗 **Direct Invite:** {support_url}"
+            ),
+            color=0x5865F2
+        )
+        if self.bot.user and self.bot.user.avatar:
+            embed.set_thumbnail(url=self.bot.user.avatar.url)
+        embed.set_footer(text=f"Requested by {interaction.user.display_name}")
+
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(label="Join Support Server", style=discord.ButtonStyle.link, url=support_url, emoji="💬"))
+        if self.bot.user:
+            invite_url = f"https://discord.com/oauth2/authorize?client_id={self.bot.user.id}&permissions=8&scope=bot%20applications.commands"
+            view.add_item(discord.ui.Button(label="Invite Bot", style=discord.ButtonStyle.link, url=invite_url, emoji="🚀"))
+
+        await interaction.response.send_message(embed=embed, view=view)
+
+    # 22. /setsupport
+    @app_commands.command(name="setsupport", description="Change the official bot support server link dynamically.")
+    @app_commands.describe(url="New Discord invite link (e.g. https://discord.gg/zyath)")
+    @app_commands.default_permissions(administrator=True)
+    async def slash_setsupport(self, interaction: discord.Interaction, url: str):
+        from utils.config_manager import set_support_server
+        clean_url = url.strip("<>").strip()
+        if not (clean_url.startswith("http://") or clean_url.startswith("https://") or "discord.gg/" in clean_url):
+            return await interaction.response.send_message(embed=error_embed("Invalid Link", "Please provide a valid Discord invite link."), ephemeral=True)
+        if not clean_url.startswith(("http://", "https://")):
+            clean_url = f"https://{clean_url}"
+
+        set_support_server(clean_url)
+        embed = success_embed(
+            "Support Link Updated",
+            f"✅ Official support server invite changed to:\n🔗 **{clean_url}**\n\nAll `$help`, `/help`, and `$support` commands have been updated!"
+        )
+        await interaction.response.send_message(embed=embed)
+
+    # 23. /scramble
+    @app_commands.command(name="scramble", description="Start a Word Scramble giveaway game in this channel.")
+    @app_commands.describe(prize="Prize for the winner")
+    @app_commands.default_permissions(manage_channels=True)
+    async def slash_scramble(self, interaction: discord.Interaction, prize: str = "Discord Nitro"):
+        cog = self.bot.get_cog("GWGames")
+        if not cog:
+            return await interaction.response.send_message("GW Games cog not loaded.", ephemeral=True)
+        import random
+        from cogs.gw_games import SCRAMBLE_WORDS
+        word = random.choice(SCRAMBLE_WORDS)
+        letters = list(word)
+        for _ in range(10):
+            random.shuffle(letters)
+            scrambled = " ".join(letters)
+            if scrambled.replace(" ", "") != word:
+                break
+        cog.active_scramble[interaction.channel_id] = {
+            "word": word,
+            "scrambled": scrambled,
+            "prize": prize,
+            "starter": interaction.user.id,
+            "start_time": datetime.datetime.utcnow().timestamp(),
+            "hint_given": False
+        }
+        embed = standard_embed(
+            title="🧩 Word Scramble GW!",
+            description=(
+                f"Unscramble the letters below to win the prize!\n\n"
+                f"🔀 **Scrambled Word:**\n# `{scrambled}`\n\n"
+                f"🎁 **Prize:** **{prize}**\n"
+                f"👑 **Hosted by:** {interaction.user.mention}\n\n"
+                f"⚡ First person to type the correct word in chat wins!"
+            ),
+            color=0xFEE75C
+        )
+        embed.set_footer(text=f"Total letters: {len(word)} • Type your answer directly!")
+        await interaction.response.send_message(embed=embed)
+
+    # 24. /drop
+    @app_commands.command(name="drop", description="Drop a fast-reaction button in this channel.")
+    @app_commands.describe(delay="Countdown seconds before button appears", prize="Prize for the fastest clicker")
+    @app_commands.default_permissions(manage_channels=True)
+    async def slash_drop(self, interaction: discord.Interaction, delay: int = 3, prize: str = "Discord Nitro"):
+        cog = self.bot.get_cog("GWGames")
+        if not cog:
+            return await interaction.response.send_message("GW Games cog not loaded.", ephemeral=True)
+        delay = max(1, min(30, delay))
+        await interaction.response.send_message(f"⏳ **Reaction Drop starting in {delay} seconds...** Get ready!")
+        # Trigger drop
+        import asyncio, time
+        await asyncio.sleep(delay)
+        start_time = time.time()
+        winner_claimed = False
+
+        class SlashDropView(discord.ui.View):
+            def __init__(self):
+                super().__init__(timeout=60)
+
+            @discord.ui.button(label="🎁 CLAIM PRIZE NOW!", style=discord.ButtonStyle.success, emoji="⚡")
+            async def claim(self, inter: discord.Interaction, button: discord.ui.Button):
+                nonlocal winner_claimed
+                if winner_claimed:
+                    return await inter.response.send_message("❌ Someone clicked a split-second ahead of you!", ephemeral=True)
+                winner_claimed = True
+                elapsed = round(time.time() - start_time, 3)
+                button.disabled = True
+                button.label = f"Claimed by {inter.user.name} ({elapsed}s)!"
+                await inter.response.edit_message(view=self)
+                await cog._lock_channel(inter.channel, f"Drop won by {inter.user}")
+
+                win_embed = standard_embed(
+                    title="⚡ REACTION DROP CLAIMED! ⚡",
+                    description=(
+                        f"🎉 Congratulations {inter.user.mention}!\n\n"
+                        f"🎁 **Prize Won:** **{prize}**\n"
+                        f"⚡ **Reaction Speed:** `{elapsed}s`\n"
+                        f"🔒 **Channel Status:** Automatically locked!"
+                    ),
+                    color=0x57F287,
+                    thumbnail=inter.user.display_avatar.url
+                )
+                await inter.channel.send(content=f"👑 {inter.user.mention}", embed=win_embed)
+
+        embed = standard_embed(
+            title="🔥 DROP IS LIVE — CLICK FIRST TO WIN! 🔥",
+            description=f"🎁 **Prize:** **{prize}**\n\n👇 **FIRST TO CLICK WINS!**",
+            color=0xED4245
+        )
+        await interaction.channel.send(embed=embed, view=SlashDropView())
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(SlashCommands(bot))

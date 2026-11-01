@@ -117,15 +117,44 @@ MODULES = {
             ("`$settradechannel #channel`", "Set the dedicated channel for live MM receipts.")
         ]
     },
-    "gtn": {
-        "title": "🎮 Guess The Number Game",
-        "description": "Interactive mini-game with real-time reaction hints and channel locking.",
+    "giveaways": {
+        "title": "🎁 Ultimate Giveaways Suite",
+        "description": "Host persistent giveaways with live countdowns, role requirements, and instant rerolls.",
+        "emoji": "🎁",
+        "color": 0x5865F2,
+        "commands": [
+            ("`$gstart <time> [winners] <prize>`", "Start a giveaway (e.g. `$gstart 10m 1w Nitro` or `$gstart 1h 2 Nitro --role @VIP`)."),
+            ("`$gend <message_id>`", "End an active giveaway early and pick winners immediately."),
+            ("`$greroll <message_id> [count]`", "Reroll new winner(s) from previous entrants."),
+            ("`$glist`", "List all active giveaways currently running in this server."),
+            ("`$gcancel <message_id>`", "Cancel a running giveaway without drawing winners.")
+        ]
+    },
+    "games": {
+        "title": "🎮 GW Event Mini-Games",
+        "description": "Exciting chat-based mini-games for giveaways with prize tracking and channel auto-locking.",
         "emoji": "🎮",
         "color": 0x57F287,
         "commands": [
-            ("`$gtn <min> <max>`", "Start a game (e.g. `$gtn 1 5000`). Bot reacts with `➕` if lower, `➖` if higher."),
-            ("`$gtnstop`", "Stop the currently running game in this channel."),
-            ("`$gtnstatus`", "Check the current game range and total guesses made.")
+            ("`$gtn <min> <max> [prize]`", "Start Guess The Number. DMs host secret number; reacts `➕`/`➖`."),
+            ("`$gtnhint` / `$gtnclue`", "Host command: drop an automated parity or range clue in chat."),
+            ("`$gtnstop`", "Stop an active GTN game."),
+            ("`$blacktea [prize]` / `$wordbomb`", "BlackTea: 3 lives, 10s bomb timer! Type words containing prompt or explode!"),
+            ("`$blackteastop`", "Stop an active BlackTea tournament."),
+            ("`$roulette [prize]`", "Russian Roulette: 6 chambers, 1 bullet. Take turns pulling trigger until 1 survives!"),
+            ("`$tictactoe @user [prize]` / `$ttt`", "Tic-Tac-Toe: 3x3 interactive button PvP duel!"),
+            ("`$rps [@user] [prize]`", "Rock Paper Scissors: secret button choices vs player or bot!"),
+            ("`$blackjack [prize]` / `$bj`", "Casino Blackjack 21: hit or stand against Dealer AI!"),
+            ("`$scramble [prize]` / `$wordgw`", "Word Scramble: first to unscramble and type word wins!"),
+            ("`$scramblestop`", "Stop an active Word Scramble game."),
+            ("`$drop [delay_sec] [prize]`", "Reaction Drop: first person to click the glowing drop button wins!"),
+            ("`$mathrace [difficulty] [prize]`", "Speed Math: first person to solve arithmetic problem wins!"),
+            ("`$rumble [lobby_time] [prize]`", "Battle Royale: warriors join lobby and fight round-by-round until 1 champion survives!"),
+            ("`$trivia [prize]`", "Trivia Race: first person to click correct answer button wins!"),
+            ("`$rollgw [time] [prize]`", "High Roll Duel: highest 1-100 dice roller takes the prize!"),
+            ("`$hack @user`", "Cyber Hack: animated simulated hacker infiltration on user!"),
+            ("`$whisper @user <msg>`", "Secret Whisper: encrypted message only target can reveal with button!"),
+            ("`$gunlock` / `$glock`", "Staff commands to quickly lock or restore channel permissions.")
         ]
     },
     "welcomer": {
@@ -171,10 +200,15 @@ MODULES = {
         "emoji": "👑",
         "color": 0x57F287,
         "commands": [
+            ("`$setsupport <url>`", "Dynamically change the official bot support server link."),
+            ("`$support`", "Display official support server invite embed and button."),
+            ("`$setavatar <url/upload>`", "Owner command: update bot avatar from URL or direct attachment."),
+            ("`$setbanner <url/upload>`", "Owner command: update bot banner profile from URL or attachment."),
+            ("`$setname <name>`", "Owner command: change bot username and update config."),
             ("`$np add @user`", "Authorize a member to use all bot commands without prefix."),
             ("`$np remove @user`", "Revoke no-prefix permissions for a user."),
             ("`$np list`", "List all authorized no-prefix members."),
-            ("`$botstats`", "View system hardware diagnostics, CPU, RAM, and Supabase database latency."),
+            ("`$botstats`", "View system hardware diagnostics, CPU, RAM, and database latency."),
             ("`$checkperms` / `$perms`", "Perform full server permission audit to ensure zero missing permissions."),
             ("`$sync`", "Globally synchronize application slash commands to Discord."),
             ("`$reload <cog|all>`", "Hot-reload bot cogs without taking the bot offline.")
@@ -187,6 +221,7 @@ MODULES = {
         "color": 0x5865F2,
         "commands": [
             ("`/help`", "Open the clean interactive help desk modal & menu."),
+            ("`/support`", "View official bot support server link and community resources."),
             ("`/shop [category]`", "Browse the verified marketplace catalog with direct ticket ordering."),
             ("`/payment`", "View accepted payment methods and wallet addresses."),
             ("`/tos`", "View shop Terms of Service and warranty guidelines."),
@@ -204,7 +239,7 @@ MODULES = {
             ("`/ban @user <reason>`", "Ban a member permanently."),
             ("`/purge <amount>`", "Bulk delete messages (1 to 100)."),
             ("`/stock`", "Check live product inventory levels."),
-            ("`/gtn <min> <max>`", "Start Guess The Number game."),
+            ("`/gtn <min> <max> [prize]`", "Start Guess The Number game."),
             ("`/poll <question>`", "Create a community reaction poll.")
         ]
     }
@@ -218,17 +253,18 @@ class HelpSelect(discord.ui.Select):
 
         options = [
             discord.SelectOption(label="Home", description="Return to main dashboard overview", emoji="🏠", value="home"),
+            discord.SelectOption(label="Giveaways", description="Persistent giveaways, live countdowns, reroll", emoji="🎁", value="giveaways"),
+            discord.SelectOption(label="GW Mini-Games", description="GTN, Scramble, Drop, Math, Rumble, Trivia", emoji="🎮", value="games"),
             discord.SelectOption(label="Moderation", description="Ban, kick, mute, warn, lock, purge", emoji="🛡️", value="moderation"),
             discord.SelectOption(label="Tickets", description="Panels, transcripts, claim, invoices", emoji="🎫", value="tickets"),
             discord.SelectOption(label="Vouches & Leaderboard", description="Reputation logger, top sellers, stats", emoji="⭐", value="vouches"),
             discord.SelectOption(label="Shop & Storefront", description="Store catalog, crypto payments, TOS", emoji="🛒", value="shop"),
             discord.SelectOption(label="AI Store & Restock", description="AI Manager, live stock, bulk restocks", emoji="🤖", value="ai"),
             discord.SelectOption(label="Middleman & Trades", description="Live MM trade receipts and $mercy", emoji="🤝", value="trades"),
-            discord.SelectOption(label="Guess The Number", description="GTN mini-game with +/- reactions", emoji="🎮", value="gtn"),
             discord.SelectOption(label="Welcomer", description="Welcome embeds, autoroles, leave logs", emoji="👋", value="welcomer"),
             discord.SelectOption(label="Fun & Utilities", description="$say, $spam, multi-ping, 8ball, tools", emoji="🎉", value="fun"),
-            discord.SelectOption(label="Management & Owner", description="No-prefix, diagnostics, perms audit", emoji="👑", value="owner"),
-            discord.SelectOption(label="Slash Commands", description="Top 20 Discord application slash commands", emoji="⚡", value="slash")
+            discord.SelectOption(label="Management & Owner", description="Avatar/banner, support, no-prefix, diagnostics", emoji="👑", value="owner"),
+            discord.SelectOption(label="Slash Commands", description="Top Discord application slash commands", emoji="⚡", value="slash")
         ]
         super().__init__(
             placeholder="🏠 Home",
@@ -279,13 +315,14 @@ class HelpView(discord.ui.View):
         super().__init__(timeout=300)
         self.add_item(HelpSelect(bot, author_name, prefix))
 
-        # Add link buttons matching user screenshot
+        # Add dynamic link buttons
         invite_url = "https://discord.com/oauth2/authorize?client_id=1521774957065928734&permissions=8&scope=bot%20applications.commands"
         if bot.user:
             invite_url = f"https://discord.com/oauth2/authorize?client_id={bot.user.id}&permissions=8&scope=bot%20applications.commands"
 
+        from utils.config_manager import get_support_server
         self.add_item(discord.ui.Button(label="Invite Zyath", style=discord.ButtonStyle.link, url=invite_url, emoji="🚀"))
-        self.add_item(discord.ui.Button(label="Support Server", style=discord.ButtonStyle.link, url="https://discord.gg/zyath", emoji="💬"))
+        self.add_item(discord.ui.Button(label="Support Server", style=discord.ButtonStyle.link, url=get_support_server(), emoji="💬"))
 
 class Help(commands.Cog):
     """Modern, minimalist, and ultra-aesthetic help desk modeled after top-tier community bots."""

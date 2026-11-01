@@ -1,6 +1,7 @@
 {
   "prefix": "$",
   "bot_name": "Zyath Bot",
+  "support_server": "https://discord.gg/zyath",
   "owner_ids": [
     "1521774957065928734",
     "1505515188991033409"

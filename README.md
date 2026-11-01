@@ -192,12 +192,55 @@ python main.py
 | `$ticket add @user` | Add member to ticket |
 | `$ticket remove @user` | Remove member from ticket |
 
-### 🎮 Guess The Number
+### 🎁 Ultimate Giveaway Suite
 | Command | Description |
 |---|---|
-| `$gtn <min> <max>` | Start GTN game (reacts `➕` if lower, `➖` if higher, locks channel on win) |
+| `$gstart <time> [winners] <prize>` | Start interactive giveaway with live timer & buttons (e.g. `$gstart 10m 1w Nitro` or `$gstart 1h 2 Nitro --role @VIP`) |
+| `$gend <message_id>` | End an active giveaway early and pick winners immediately |
+| `$greroll <message_id> [count]` | Reroll new winner(s) from previous entrants |
+| `$glist` | List all active giveaways currently running in this server |
+| `$gcancel <message_id>` | Cancel an active giveaway without picking winners |
+
+### 🎮 GW Event Mini-Games Suite
+| Command | Description |
+|---|---|
+| `$gtn <min> <max> [prize]` | Start GTN with prize tracking (reacts `➕` if lower, `➖` if higher, locks channel on win) |
+| `$gtnhint` / `$gtnclue` | Host clue: drop automatic parity or range clue in chat |
 | `$gtnstop` | Stop active GTN game |
 | `$gtnstatus` | View active GTN range and guess count |
+| `$blacktea [prize]` / `$wordbomb` | BlackTea: 3 lives, 10s bomb timer! Type words containing prompt or explode! |
+| `$blackteastop` | Stop an active BlackTea tournament |
+| `$roulette [prize]` | Russian Roulette: 6 chambers, 1 bullet. Take turns pulling trigger until 1 survives! |
+| `$tictactoe @user [prize]` / `$ttt` | Tic-Tac-Toe: 3x3 interactive button PvP duel! |
+| `$rps [@user] [prize]` | Rock Paper Scissors: secret button choices vs player or bot! |
+| `$blackjack [prize]` / `$bj` | Casino Blackjack 21: hit or stand against Dealer AI! |
+| `$scramble [prize]` / `$wordgw` | Word Scramble event: first person to unscramble & type word wins! |
+| `$scramblestop` | Stop active Word Scramble game |
+| `$drop [delay_sec] [prize]` / `$fastclick` | Fast Reaction Drop: countdown then glowing button drops — first click wins! |
+| `$mathrace [easy\|med\|hard] [prize]` | Speed Math: first person to solve arithmetic problem wins! |
+| `$mathstop` | Stop active Math Race |
+| `$rumble [lobby_time] [prize]` | Battle Royale: warriors join lobby and fight round-by-round until 1 champion survives! |
+| `$trivia [prize]` | Trivia Race: interactive 4-button trivia question — first correct click wins! |
+| `$rollgw [time] [prize]` | High Roll Duel: highest 1-100 dice roller takes the prize! |
+| `$hack @user` | Cyber Hack: animated simulated hacker infiltration on user! |
+| `$whisper @user <msg>` | Secret Whisper: encrypted message only target can reveal with button! |
+| `$gunlock` / `$glock` | Staff quick channel lock/unlock for giveaway event channels |
+
+### 👑 Bot Management & Owner Suite
+| Command | Description |
+|---|---|
+| `$setsupport <url>` | Dynamically update official bot support server link (Owner/Admin) |
+| `$support` | Display official support server invite embed & direct button |
+| `$setavatar [url/upload]` | **Owner-Only**: Update bot avatar from link or file upload |
+| `$setbanner [url/upload]` | **Owner-Only**: Update bot banner profile from link or upload |
+| `$setname <name>` | **Owner-Only**: Update bot username |
+| `$np add @user` | Grant permanent no-prefix execution to a user |
+| `$np remove @user` | Revoke no-prefix execution from a user |
+| `$np list` | View all authorized no-prefix users |
+| `$botstats` | View real-time hardware diagnostics (RAM, CPU, Latency, DB) |
+| `$checkperms` | Comprehensive server permissions audit |
+| `$reload <cog\|all>` | Hot reload cogs without downtime |
+| `$sync` | Globally synchronize Discord slash command tree |
 
 ### 🤝 Middleman & Trades ($mercy)
 | Command | Description |
