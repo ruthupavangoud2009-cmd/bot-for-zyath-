@@ -712,5 +712,97 @@ class SlashCommands(commands.Cog):
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    # 33. /rank
+    @app_commands.command(name="rank", description="Check your or another member's level, XP, and rank card.")
+    async def slash_rank(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+        target = member or interaction.user
+        data = await db.get_level_data(interaction.guild_id, target.id)
+        lvl = data["level"]
+        xp = data["xp"]
+        needed_xp = 5 * (lvl ** 2) + 50 * lvl + 100
+        rank = await db.get_user_rank(interaction.guild_id, target.id)
+
+        # Progress bar
+        ratio = min(1.0, max(0.0, xp / needed_xp)) if needed_xp > 0 else 0
+        filled = int(ratio * 10)
+        empty = 10 - filled
+        bar = f"[{'█' * filled}{'░' * empty}] `{int(ratio * 100)}%`"
+
+        embed = standard_embed(
+            title=f"📊 {target.display_name}'s Level Dossier",
+            description=(
+                f"• **Server Rank:** `#{rank}` 🏆\n"
+                f"• **Current Level:** `Level {lvl}` ⭐\n"
+                f"• **Experience:** `{xp:,} / {needed_xp:,} XP`\n"
+                f"• **Progress:** {bar}"
+            ),
+            color=0x5865F2,
+            thumbnail=target.display_avatar.url
+        )
+        embed.set_footer(text=f"Requested by {interaction.user.display_name}")
+        await interaction.response.send_message(embed=embed)
+
+    # 34. /levels
+    @app_commands.command(name="levels", description="View the top active chatters in this server.")
+    async def slash_levels(self, interaction: discord.Interaction):
+        top_users = await db.get_leaderboard(interaction.guild_id, limit=10)
+        if not top_users:
+            return await interaction.response.send_message(embed=info_embed("Server Leaderboard", "No member XP records found yet."), ephemeral=True)
+
+        lines = []
+        medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
+        for idx, u in enumerate(top_users):
+            user_id = u["user_id"]
+            lvl = u["level"]
+            xp = u["xp"]
+            medal = medals[idx] if idx < len(medals) else f"`#{idx+1}`"
+            lines.append(f"{medal} <@{user_id}> — **Level {lvl}** (`{xp:,} XP`)")
+
+        embed = standard_embed(
+            title=f"🏆 {interaction.guild.name} • Active Chat Leaderboard",
+            description="\n".join(lines),
+            color=0xFEE75C
+        )
+        await interaction.response.send_message(embed=embed)
+
+    # 35. /premium
+    @app_commands.command(name="premium", description="View current server and personal premium status and active perks.")
+    async def slash_premium(self, interaction: discord.Interaction):
+        guild_id = interaction.guild_id
+        user_id = interaction.user.id
+
+        is_guild_prem = db.is_guild_premium(guild_id)
+        is_user_prem = db.is_user_premium(user_id)
+
+        guild_prem_data = await db.get_premium(guild_id) if is_guild_prem else None
+        user_prem_data = await db.get_premium(user_id) if is_user_prem else None
+
+        def format_badge(data):
+            if not data:
+                return "⚪ **Inactive**"
+            exp = data.get("expires_at")
+            if not exp:
+                return "🌟 **Active** (Lifetime / Permanent)"
+            if isinstance(exp, str):
+                return f"🌟 **Active** (`{exp[:10]}`)"
+            ts = int(exp.timestamp())
+            return f"🌟 **Active** (Expires <t:{ts}:R>)"
+
+        embed = standard_embed(
+            title="💎 Zyath Elite Premium Status",
+            description=(
+                f"• **This Server:** {format_badge(guild_prem_data)}\n"
+                f"• **Your Account:** {format_badge(user_prem_data)}\n\n"
+                "**👑 Active Premium Perks:**\n"
+                "✨ **2x Daily Coins:** Double rewards on `$daily` streak.\n"
+                "🎰 **High-Roller Limits:** Bet up to 250,000 coins on `$slots` and `$gamble`.\n"
+                "🎫 **Unlimited Ticket Categories:** No restrictions on modular ticket setups.\n"
+                "🚀 **Multi-Winner Boosts:** Run giveaways with up to 20 winners simultaneously.\n"
+                "🛡️ **VIP AutoMod Sensitivity:** Ultra-fast sub-second spam and raid suppression."
+            ),
+            color=0xF1C40F
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(SlashCommands(bot))

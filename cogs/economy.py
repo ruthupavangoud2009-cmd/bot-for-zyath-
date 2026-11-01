@@ -96,13 +96,19 @@ class Economy(commands.Cog):
         streak_bonus = min(streak * 150, 3000)
         total_reward = base_reward + streak_bonus
 
+        is_prem = db.is_guild_premium(ctx.guild.id) or db.is_user_premium(ctx.author.id)
+        if is_prem:
+            total_reward *= 2
+
         new_wallet = eco["wallet"] + total_reward
         await db.update_economy(ctx.guild.id, ctx.author.id, wallet=new_wallet, last_daily=now, streak=streak)
+
+        prem_str = "\n💎 **Premium Bonus:** `2x Multiplier Applied!`" if is_prem else ""
 
         embed = standard_embed(
             title="🎁 Daily Reward Claimed!",
             description=(
-                f"You received **+{total_reward:,} coins**!\n\n"
+                f"You received **+{total_reward:,} coins**!{prem_str}\n\n"
                 f"• **Base Reward:** `1,000` coins\n"
                 f"• **Streak Bonus:** `+{streak_bonus:,}` coins\n"
                 f"• **Current Streak:** 🔥 `{streak}` day(s)\n"

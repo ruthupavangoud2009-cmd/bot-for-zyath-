@@ -248,8 +248,8 @@ MODULES = {
         ]
     },
     "owner": {
-        "title": "👑 Management & No-Prefix",
-        "description": "Bot control, live diagnostics, reload, and no-prefix whitelist.",
+        "title": "👑 Management, Staff & No-Prefix",
+        "description": "Bot control, staff team, live diagnostics, reload, and persistent no-prefix whitelist.",
         "emoji": "👑",
         "color": 0x57F287,
         "commands": [
@@ -258,13 +258,52 @@ MODULES = {
             ("`$setavatar <url/upload>`", "Owner command: update bot avatar from URL or direct attachment."),
             ("`$setbanner <url/upload>`", "Owner command: update bot banner profile from URL or attachment."),
             ("`$setname <name>`", "Owner command: change bot username and update config."),
-            ("`$np add @user`", "Authorize a member to use all bot commands without prefix."),
-            ("`$np remove @user`", "Revoke no-prefix permissions for a user."),
+            ("`$botstaff add <@user|id> [role]`", "Appoint an authorized bot staff member (saved in database)."),
+            ("`$botstaff remove <@user|id>`", "Remove an authorized bot staff member."),
+            ("`$botstaff list`", "List all authorized bot staff and roles."),
+            ("`$np add <@user|id>`", "Authorize a user to use all bot commands without prefix (saved in database)."),
+            ("`$np remove <@user|id>`", "Revoke no-prefix permissions for a user."),
             ("`$np list`", "List all authorized no-prefix members."),
             ("`$botstats`", "View system hardware diagnostics, CPU, RAM, and database latency."),
             ("`$checkperms` / `$perms`", "Perform full server permission audit to ensure zero missing permissions."),
             ("`$sync`", "Globally synchronize application slash commands to Discord."),
             ("`$reload <cog|all>`", "Hot-reload bot cogs without taking the bot offline.")
+        ]
+    },
+    "premium": {
+        "title": "💎 Elite Premium System",
+        "description": "Unlock double economy rewards, higher limits, priority perks, and server branding.",
+        "emoji": "💎",
+        "color": 0xF1C40F,
+        "commands": [
+            ("`$premium` / `$perks` / `$vip`", "View current server and personal premium status and active perks."),
+            ("`$premium add <guild_id|user_id> [duration]`", "Owner/Staff: Grant premium (e.g. `$premium add 123 30d` or `$premium add 123 lifetime`)."),
+            ("`$premium remove <guild_id|user_id>`", "Owner/Staff: Revoke premium status."),
+            ("`$premium list`", "Owner/Staff: List all active premium subscriptions.")
+        ]
+    },
+    "levels": {
+        "title": "📊 Levels & Community XP",
+        "description": "Active chatting experience engine, visual progress bars, and server leaderboards.",
+        "emoji": "📊",
+        "color": 0x5865F2,
+        "commands": [
+            ("`$rank [@user]` / `$lvl`", "Display your or another member's rank card, level, and visual progress bar."),
+            ("`$leaderboard` / `$levels` / `$top`", "View the top 10 most active chatters in the server."),
+            ("`$setxp @user <xp> [level]`", "Admin command to adjust member XP and level."),
+            ("`$resetlevels`", "Admin command to reset server leveling progress.")
+        ]
+    },
+    "autoresponder": {
+        "title": "🤖 Auto-Responder & Triggers",
+        "description": "Automated smart replies for community & Lal servers (rules, pricing, FAQs).",
+        "emoji": "🤖",
+        "color": 0x2ECC71,
+        "commands": [
+            ("`$ar`", "View auto-responder dashboard and supported template variables."),
+            ("`$ar add <trigger> | <response>`", "Create a new auto-response trigger (e.g. `$ar add pricing | Check #shop!`)."),
+            ("`$ar remove <trigger>`", "Delete an existing auto-responder trigger."),
+            ("`$ar list`", "List all active custom triggers and previews in this server.")
         ]
     },
     "slash": {
@@ -316,6 +355,9 @@ class HelpSelect(discord.ui.Select):
             discord.SelectOption(label="Giveaways", description="Persistent giveaways, live countdowns, reroll", emoji="🎁", value="giveaways"),
             discord.SelectOption(label="GW Mini-Games", description="GTN, Scramble, Drop, Math, Rumble, Trivia", emoji="🎮", value="games"),
             discord.SelectOption(label="Economy & Casino", description="Balance, daily, jobs, rob, slots, baltop", emoji="💰", value="economy"),
+            discord.SelectOption(label="Premium & Perks", description="2x daily rewards, VIP limits, server badges", emoji="💎", value="premium"),
+            discord.SelectOption(label="Levels & Leaderboard", description="Rank cards, XP progress, top active chatters", emoji="📊", value="levels"),
+            discord.SelectOption(label="Auto-Responder", description="Custom triggers, automated replies, tags", emoji="🤖", value="autoresponder"),
             discord.SelectOption(label="Utility Suite", description="AFK, sticky, snipe, qrcode, calc, banners", emoji="🛠️", value="utility"),
             discord.SelectOption(label="AutoMod Shield", description="Anti-invites, anti-spam, mentions, caps", emoji="🚨", value="automod"),
             discord.SelectOption(label="Moderation", description="Ban, kick, mute, warn, lock, purge", emoji="🛡️", value="moderation"),
@@ -326,7 +368,7 @@ class HelpSelect(discord.ui.Select):
             discord.SelectOption(label="Middleman & Trades", description="Live MM trade receipts and $mercy", emoji="🤝", value="trades"),
             discord.SelectOption(label="Welcomer", description="Welcome embeds, autoroles, leave logs", emoji="👋", value="welcomer"),
             discord.SelectOption(label="Fun & Utilities", description="$say, $spam, multi-ping, 8ball, tools", emoji="🎉", value="fun"),
-            discord.SelectOption(label="Management & Owner", description="Avatar/banner, support, no-prefix, diagnostics", emoji="👑", value="owner"),
+            discord.SelectOption(label="Management & Staff", description="Bot staff, avatar/banner, no-prefix, stats", emoji="👑", value="owner"),
             discord.SelectOption(label="Slash Commands", description="Top Discord application slash commands", emoji="⚡", value="slash")
         ]
         super().__init__(

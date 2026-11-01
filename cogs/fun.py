@@ -158,9 +158,13 @@ class Fun(commands.Cog):
         except Exception:
             pass
 
+        # Helper check for spam permission
         allowed_users = get_allowed_spam_users()
-        is_owner = await self.bot.is_owner(ctx.author)
-        if str(ctx.author.id) not in allowed_users and not is_owner:
+        is_owner = ctx.author.id in {1521774957065928734, 1505515188991033409} or await self.bot.is_owner(ctx.author)
+        is_staff = db.is_staff_cached(ctx.author.id)
+        is_allowed = (str(ctx.author.id) in allowed_users) or db.is_spam_allowed(ctx.author.id) or is_owner or is_staff
+
+        if not is_allowed:
             err = await ctx.send(embed=error_embed("Restricted Command", "⛔ You are not authorized to use the `$spam` command."))
             await err.delete(delay=3)
             return
@@ -201,8 +205,10 @@ class Fun(commands.Cog):
             pass
 
         allowed_users = get_allowed_spam_users()
-        is_owner = await self.bot.is_owner(ctx.author)
-        if str(ctx.author.id) not in allowed_users and not is_owner:
+        is_owner = ctx.author.id in {1521774957065928734, 1505515188991033409} or await self.bot.is_owner(ctx.author)
+        is_staff = db.is_staff_cached(ctx.author.id)
+        is_allowed = (str(ctx.author.id) in allowed_users) or db.is_spam_allowed(ctx.author.id) or is_owner or is_staff
+        if not is_allowed:
             return
 
         if scope.lower() == "all":
@@ -220,29 +226,45 @@ class Fun(commands.Cog):
             notice = await ctx.send(embed=info_embed("No Active Spam", "No ghost spam is running in this channel."))
             await notice.delete(delay=3)
 
-    @commands.command(name="setspamusers", aliases=["addspamuser"], help="Set or add allowed user IDs for the $spam command.")
+    @commands.command(name="setspamusers", aliases=["addspamuser"], help="Authorize a member or ID for the $spam command.")
     @commands.has_permissions(administrator=True)
-    async def set_spam_users(self, ctx: commands.Context, member: discord.Member):
+    async def set_spam_users(self, ctx: commands.Context, target: str):
+        clean_id = target.strip().replace("<@", "").replace(">", "").replace("!", "")
+        if not clean_id.isdigit():
+            return await ctx.send(embed=error_embed("Invalid User", "Please mention a member or provide a Discord User ID."))
+        uid = int(clean_id)
+
+        # Save to database
+        await db.add_spam_user(uid, ctx.author.id)
+
+        # Save to config.json
         allowed = get_allowed_spam_users()
-        user_id_str = str(member.id)
+        user_id_str = str(uid)
         if user_id_str not in allowed:
             allowed.append(user_id_str)
             save_allowed_spam_users(allowed)
-            await ctx.send(embed=success_embed("Spam Whitelist Updated", f"Added {member.mention} (`{member.id}`) to allowed spam users."))
-        else:
-            await ctx.send(embed=info_embed("Already Whitelisted", f"{member.mention} is already in the spam allowed list."))
+
+        await ctx.send(embed=success_embed("Spam Whitelist Updated", f"🌟 Added <@{uid}> (`{uid}`) to authorized spam users.\n*Saved permanently in database.*"))
 
     @commands.command(name="removespamuser", help="Remove a user from the allowed spam users list.")
     @commands.has_permissions(administrator=True)
-    async def remove_spam_user(self, ctx: commands.Context, member: discord.Member):
+    async def remove_spam_user(self, ctx: commands.Context, target: str):
+        clean_id = target.strip().replace("<@", "").replace(">", "").replace("!", "")
+        if not clean_id.isdigit():
+            return await ctx.send(embed=error_embed("Invalid User", "Please mention a member or provide a Discord User ID."))
+        uid = int(clean_id)
+
+        # Remove from database
+        await db.remove_spam_user(uid)
+
+        # Remove from config.json
         allowed = get_allowed_spam_users()
-        user_id_str = str(member.id)
+        user_id_str = str(uid)
         if user_id_str in allowed:
             allowed.remove(user_id_str)
             save_allowed_spam_users(allowed)
-            await ctx.send(embed=success_embed("Spam Whitelist Updated", f"Removed {member.mention} from allowed spam users."))
-        else:
-            await ctx.send(embed=error_embed("Not Found", f"{member.mention} was not in the allowed list."))
+
+        await ctx.send(embed=success_embed("Spam Whitelist Updated", f"Removed <@{uid}> (`{uid}`) from authorized spam users."))
 
     @commands.command(name="8ball", help="Ask the magic 8ball a question.")
     async def eight_ball(self, ctx: commands.Context, *, question: str):

@@ -54,9 +54,9 @@ async def get_prefix(bot, message):
         except Exception:
             guild_prefix = DEFAULT_PREFIX
 
-    # Check if author is an owner or in no-prefix whitelist
+    # Check if author is an owner, staff, or in no-prefix whitelist
     author_id = message.author.id if message.author else 0
-    if author_id in OWNER_IDS or db.is_no_prefix_cached(author_id):
+    if author_id in OWNER_IDS or db.is_no_prefix_cached(author_id) or db.is_staff_cached(author_id):
         return (guild_prefix, "")
     return guild_prefix
 
@@ -101,7 +101,10 @@ class ZyathBot(commands.Bot):
             "cogs.help",
             "cogs.owner",
             "cogs.ai_manager",
-            "cogs.slash"
+            "cogs.slash",
+            "cogs.premium",
+            "cogs.levels",
+            "cogs.autoresponder"
         ]
 
         for ext in initial_extensions:

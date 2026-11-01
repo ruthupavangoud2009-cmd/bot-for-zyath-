@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import datetime
 import asyncio
 import aiosqlite
 import asyncpg
@@ -199,6 +200,63 @@ CREATE TABLE IF NOT EXISTS automod_settings (
     anti_caps BOOLEAN DEFAULT FALSE,
     log_channel_id BIGINT
 );
+
+CREATE TABLE IF NOT EXISTS bot_staff (
+    user_id BIGINT PRIMARY KEY,
+    role TEXT DEFAULT 'Staff',
+    added_by BIGINT NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS premium_records (
+    target_id BIGINT PRIMARY KEY,
+    target_type TEXT NOT NULL,
+    tier TEXT DEFAULT 'Premium',
+    expires_at TIMESTAMP,
+    added_by BIGINT NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS auto_responders (
+    id SERIAL PRIMARY KEY,
+    guild_id BIGINT NOT NULL,
+    trigger_text TEXT NOT NULL,
+    response_text TEXT NOT NULL,
+    added_by BIGINT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(guild_id, trigger_text)
+);
+
+CREATE TABLE IF NOT EXISTS levels (
+    guild_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    xp BIGINT DEFAULT 0,
+    level INTEGER DEFAULT 0,
+    last_xp_time DOUBLE PRECISION DEFAULT 0,
+    PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS level_settings (
+    guild_id BIGINT PRIMARY KEY,
+    enabled BOOLEAN DEFAULT TRUE,
+    channel_id BIGINT
+);
+
+CREATE TABLE IF NOT EXISTS reaction_roles (
+    id SERIAL PRIMARY KEY,
+    guild_id BIGINT NOT NULL,
+    channel_id BIGINT NOT NULL,
+    message_id BIGINT NOT NULL,
+    role_id BIGINT NOT NULL,
+    emoji TEXT,
+    label TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS allowed_spam_users (
+    user_id BIGINT PRIMARY KEY,
+    added_by BIGINT NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 SQLITE_SCHEMA = """
@@ -378,6 +436,63 @@ CREATE TABLE IF NOT EXISTS automod_settings (
     anti_caps BOOLEAN DEFAULT 0,
     log_channel_id INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS bot_staff (
+    user_id INTEGER PRIMARY KEY,
+    role TEXT DEFAULT 'Staff',
+    added_by INTEGER NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS premium_records (
+    target_id INTEGER PRIMARY KEY,
+    target_type TEXT NOT NULL,
+    tier TEXT DEFAULT 'Premium',
+    expires_at TIMESTAMP,
+    added_by INTEGER NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS auto_responders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id INTEGER NOT NULL,
+    trigger_text TEXT NOT NULL,
+    response_text TEXT NOT NULL,
+    added_by INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(guild_id, trigger_text)
+);
+
+CREATE TABLE IF NOT EXISTS levels (
+    guild_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    xp INTEGER DEFAULT 0,
+    level INTEGER DEFAULT 0,
+    last_xp_time REAL DEFAULT 0,
+    PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS level_settings (
+    guild_id INTEGER PRIMARY KEY,
+    enabled BOOLEAN DEFAULT 1,
+    channel_id INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS reaction_roles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id INTEGER NOT NULL,
+    channel_id INTEGER NOT NULL,
+    message_id INTEGER NOT NULL,
+    role_id INTEGER NOT NULL,
+    emoji TEXT,
+    label TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS allowed_spam_users (
+    user_id INTEGER PRIMARY KEY,
+    added_by INTEGER NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 class Database:
@@ -386,6 +501,9 @@ class Database:
         self.is_postgres = False
         self.pool: Optional[asyncpg.Pool] = None
         self._np_cache = set()
+        self._staff_cache: Dict[int, str] = {}
+        self._premium_cache: Dict[int, Dict[str, Any]] = {}
+        self._spam_cache = set()
 
     async def init(self):
         """Initialize database connection to Supabase PostgreSQL with SQLite fallback."""
@@ -415,6 +533,9 @@ class Database:
             print("\033[92m[DATABASE]\033[0m Local SQLite database initialized.")
 
         await self.load_np_cache()
+        await self.load_staff_cache()
+        await self.load_premium_cache()
+        await self.load_spam_cache()
 
     async def ping(self) -> Tuple[float, str]:
         """Measure database query round-trip latency in milliseconds."""
@@ -432,18 +553,94 @@ class Database:
 
     async def load_np_cache(self):
         """Loads whitelisted no-prefix users into in-memory cache for fast sync lookups."""
-        if self.is_postgres and self.pool:
-            async with self.pool.acquire() as conn:
-                rows = await conn.fetch("SELECT user_id FROM no_prefix_users")
-                self._np_cache = {int(r["user_id"]) for r in rows}
-        else:
-            async with aiosqlite.connect(self.sqlite_path) as db:
-                cursor = await db.execute("SELECT user_id FROM no_prefix_users")
-                rows = await cursor.fetchall()
-                self._np_cache = {int(r[0]) for r in rows}
+        try:
+            if self.is_postgres and self.pool:
+                async with self.pool.acquire() as conn:
+                    rows = await conn.fetch("SELECT user_id FROM no_prefix_users")
+                    self._np_cache = {int(r["user_id"]) for r in rows}
+            else:
+                async with aiosqlite.connect(self.sqlite_path) as db:
+                    cursor = await db.execute("SELECT user_id FROM no_prefix_users")
+                    rows = await cursor.fetchall()
+                    self._np_cache = {int(r[0]) for r in rows}
+        except Exception as e:
+            print(f"[CACHE] Error loading NP cache: {e}")
 
     def is_no_prefix_cached(self, user_id: int) -> bool:
         return user_id in self._np_cache
+
+    async def load_staff_cache(self):
+        """Loads authorized bot staff into memory cache."""
+        try:
+            if self.is_postgres and self.pool:
+                async with self.pool.acquire() as conn:
+                    rows = await conn.fetch("SELECT user_id, role FROM bot_staff")
+                    self._staff_cache = {int(r["user_id"]): r["role"] for r in rows}
+            else:
+                async with aiosqlite.connect(self.sqlite_path) as db:
+                    cursor = await db.execute("SELECT user_id, role FROM bot_staff")
+                    rows = await cursor.fetchall()
+                    self._staff_cache = {int(r[0]): r[1] for r in rows}
+        except Exception as e:
+            print(f"[CACHE] Error loading staff cache: {e}")
+
+    def is_staff_cached(self, user_id: int) -> bool:
+        return user_id in self._staff_cache
+
+    def get_staff_role(self, user_id: int) -> Optional[str]:
+        return self._staff_cache.get(user_id)
+
+    async def load_premium_cache(self):
+        """Loads active premium guilds & users into memory cache."""
+        try:
+            now = time.time()
+            if self.is_postgres and self.pool:
+                async with self.pool.acquire() as conn:
+                    rows = await conn.fetch("SELECT * FROM premium_records")
+                    self._premium_cache = {}
+                    for r in rows:
+                        exp = r["expires_at"]
+                        if exp is None or exp.timestamp() > now:
+                            self._premium_cache[int(r["target_id"])] = dict(r)
+            else:
+                async with aiosqlite.connect(self.sqlite_path) as db:
+                    db.row_factory = aiosqlite.Row
+                    cursor = await db.execute("SELECT * FROM premium_records")
+                    rows = await cursor.fetchall()
+                    self._premium_cache = {}
+                    for r in rows:
+                        exp = r["expires_at"]
+                        # SQLite stores as ISO string or timestamp
+                        self._premium_cache[int(r["target_id"])] = dict(r)
+        except Exception as e:
+            print(f"[CACHE] Error loading premium cache: {e}")
+
+    def is_premium_cached(self, target_id: int) -> bool:
+        return target_id in self._premium_cache
+
+    def is_guild_premium(self, guild_id: int) -> bool:
+        return self.is_premium_cached(guild_id)
+
+    def is_user_premium(self, user_id: int) -> bool:
+        return self.is_premium_cached(user_id)
+
+    async def load_spam_cache(self):
+        """Loads authorized spam command users into memory cache."""
+        try:
+            if self.is_postgres and self.pool:
+                async with self.pool.acquire() as conn:
+                    rows = await conn.fetch("SELECT user_id FROM allowed_spam_users")
+                    self._spam_cache = {int(r["user_id"]) for r in rows}
+            else:
+                async with aiosqlite.connect(self.sqlite_path) as db:
+                    cursor = await db.execute("SELECT user_id FROM allowed_spam_users")
+                    rows = await cursor.fetchall()
+                    self._spam_cache = {int(r[0]) for r in rows}
+        except Exception as e:
+            print(f"[CACHE] Error loading spam cache: {e}")
+
+    def is_spam_allowed(self, user_id: int) -> bool:
+        return user_id in self._spam_cache
 
     # ==========================================
     # GUILD SETTINGS
@@ -1136,12 +1333,353 @@ class Database:
         if self.is_postgres and self.pool:
             async with self.pool.acquire() as conn:
                 rows = await conn.fetch("SELECT * FROM no_prefix_users ORDER BY timestamp DESC")
+                return [dict(r) for r in rows]
         else:
             async with aiosqlite.connect(self.sqlite_path) as db:
                 db.row_factory = aiosqlite.Row
                 cursor = await db.execute("SELECT * FROM no_prefix_users ORDER BY timestamp DESC")
                 rows = await cursor.fetchall()
                 return [dict(r) for r in rows]
+
+    # ==========================================
+    # BOT STAFF SYSTEM
+    # ==========================================
+    async def add_bot_staff(self, user_id: int, role: str, added_by: int):
+        clean_role = (role or "Staff").strip()[:30]
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO bot_staff (user_id, role, added_by) VALUES ($1, $2, $3)
+                    ON CONFLICT(user_id) DO UPDATE SET role = EXCLUDED.role, added_by = EXCLUDED.added_by
+                """, user_id, clean_role, added_by)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("""
+                    INSERT INTO bot_staff (user_id, role, added_by) VALUES (?, ?, ?)
+                    ON CONFLICT(user_id) DO UPDATE SET role = excluded.role, added_by = excluded.added_by
+                """, (user_id, clean_role, added_by))
+                await db.commit()
+        self._staff_cache[user_id] = clean_role
+
+    async def remove_bot_staff(self, user_id: int) -> bool:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                res = await conn.execute("DELETE FROM bot_staff WHERE user_id = $1", user_id)
+                removed = "DELETE 1" in res
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("DELETE FROM bot_staff WHERE user_id = ?", (user_id,))
+                await db.commit()
+                removed = cursor.rowcount > 0
+        if removed:
+            self._staff_cache.pop(user_id, None)
+        return removed
+
+    async def get_all_bot_staff(self) -> List[Dict[str, Any]]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT * FROM bot_staff ORDER BY timestamp DESC")
+                return [dict(r) for r in rows]
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("SELECT * FROM bot_staff ORDER BY timestamp DESC")
+                rows = await cursor.fetchall()
+                return [dict(r) for r in rows]
+
+    # ==========================================
+    # PREMIUM SUBSCRIPTION SYSTEM
+    # ==========================================
+    async def add_premium(self, target_id: int, target_type: str, tier: str, expires_at: Optional[datetime.datetime], added_by: int):
+        target_type = target_type.lower()
+        tier = (tier or "Premium").strip()
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO premium_records (target_id, target_type, tier, expires_at, added_by)
+                    VALUES ($1, $2, $3, $4, $5)
+                    ON CONFLICT(target_id) DO UPDATE SET
+                        target_type = EXCLUDED.target_type,
+                        tier = EXCLUDED.tier,
+                        expires_at = EXCLUDED.expires_at,
+                        added_by = EXCLUDED.added_by
+                """, target_id, target_type, tier, expires_at, added_by)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                exp_str = expires_at.isoformat() if expires_at else None
+                await db.execute("""
+                    INSERT INTO premium_records (target_id, target_type, tier, expires_at, added_by)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(target_id) DO UPDATE SET
+                        target_type = excluded.target_type,
+                        tier = excluded.tier,
+                        expires_at = excluded.expires_at,
+                        added_by = excluded.added_by
+                """, (target_id, target_type, tier, exp_str, added_by))
+                await db.commit()
+        await self.load_premium_cache()
+
+    async def remove_premium(self, target_id: int) -> bool:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                res = await conn.execute("DELETE FROM premium_records WHERE target_id = $1", target_id)
+                removed = "DELETE 1" in res
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("DELETE FROM premium_records WHERE target_id = ?", (target_id,))
+                await db.commit()
+                removed = cursor.rowcount > 0
+        if removed:
+            self._premium_cache.pop(target_id, None)
+        return removed
+
+    async def get_premium(self, target_id: int) -> Optional[Dict[str, Any]]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT * FROM premium_records WHERE target_id = $1", target_id)
+                return dict(row) if row else None
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("SELECT * FROM premium_records WHERE target_id = ?", (target_id,))
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+
+    async def get_all_premium(self) -> List[Dict[str, Any]]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT * FROM premium_records ORDER BY timestamp DESC")
+                return [dict(r) for r in rows]
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("SELECT * FROM premium_records ORDER BY timestamp DESC")
+                rows = await cursor.fetchall()
+                return [dict(r) for r in rows]
+
+    # ==========================================
+    # AUTO-RESPONDERS (LAL & COMMUNITY SERVERS)
+    # ==========================================
+    async def add_auto_responder(self, guild_id: int, trigger: str, response: str, added_by: int):
+        clean_trig = trigger.strip().lower()[:100]
+        clean_resp = response.strip()[:2000]
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO auto_responders (guild_id, trigger_text, response_text, added_by)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT(guild_id, trigger_text) DO UPDATE SET
+                        response_text = EXCLUDED.response_text,
+                        added_by = EXCLUDED.added_by
+                """, guild_id, clean_trig, clean_resp, added_by)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("""
+                    INSERT INTO auto_responders (guild_id, trigger_text, response_text, added_by)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(guild_id, trigger_text) DO UPDATE SET
+                        response_text = excluded.response_text,
+                        added_by = excluded.added_by
+                """, (guild_id, clean_trig, clean_resp, added_by))
+                await db.commit()
+
+    async def remove_auto_responder(self, guild_id: int, trigger: str) -> bool:
+        clean_trig = trigger.strip().lower()
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                res = await conn.execute("DELETE FROM auto_responders WHERE guild_id = $1 AND trigger_text = $2", guild_id, clean_trig)
+                return "DELETE 1" in res
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("DELETE FROM auto_responders WHERE guild_id = ? AND trigger_text = ?", (guild_id, clean_trig))
+                await db.commit()
+                return cursor.rowcount > 0
+
+    async def get_auto_responders(self, guild_id: int) -> List[Dict[str, Any]]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT * FROM auto_responders WHERE guild_id = $1 ORDER BY id ASC", guild_id)
+                return [dict(r) for r in rows]
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("SELECT * FROM auto_responders WHERE guild_id = ? ORDER BY id ASC", (guild_id,))
+                rows = await cursor.fetchall()
+                return [dict(r) for r in rows]
+
+    async def find_auto_response(self, guild_id: int, text: str) -> Optional[str]:
+        clean_text = text.strip().lower()
+        responders = await self.get_auto_responders(guild_id)
+        for r in responders:
+            trig = r["trigger_text"].lower()
+            # Exact match or word boundary match
+            if clean_text == trig or clean_text.startswith(f"{trig} ") or f" {trig} " in f" {clean_text} ":
+                return r["response_text"]
+        return None
+
+    # ==========================================
+    # LEVELING & XP SYSTEM (RANK & LEADERBOARD)
+    # ==========================================
+    async def get_level_data(self, guild_id: int, user_id: int) -> Dict[str, Any]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT * FROM levels WHERE guild_id = $1 AND user_id = $2", guild_id, user_id)
+                if not row:
+                    await conn.execute("INSERT INTO levels (guild_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", guild_id, user_id)
+                    return {"guild_id": guild_id, "user_id": user_id, "xp": 0, "level": 0, "last_xp_time": 0}
+                return dict(row)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("SELECT * FROM levels WHERE guild_id = ? AND user_id = ?", (guild_id, user_id))
+                row = await cursor.fetchone()
+                if not row:
+                    await db.execute("INSERT INTO levels (guild_id, user_id) VALUES (?, ?) ON CONFLICT DO NOTHING", (guild_id, user_id))
+                    await db.commit()
+                    return {"guild_id": guild_id, "user_id": user_id, "xp": 0, "level": 0, "last_xp_time": 0}
+                return dict(row)
+
+    async def add_xp(self, guild_id: int, user_id: int, xp_amount: int) -> Tuple[bool, int, int]:
+        """Awards XP and calculates if user leveled up. Formula: next_level_xp = 5 * (lvl ** 2) + 50 * lvl + 100"""
+        data = await self.get_level_data(guild_id, user_id)
+        current_xp = data["xp"] + xp_amount
+        current_lvl = data["level"]
+        now = time.time()
+
+        needed_xp = 5 * (current_lvl ** 2) + 50 * current_lvl + 100
+        leveled_up = False
+        new_lvl = current_lvl
+
+        while current_xp >= needed_xp:
+            current_xp -= needed_xp
+            new_lvl += 1
+            leveled_up = True
+            needed_xp = 5 * (new_lvl ** 2) + 50 * new_lvl + 100
+
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    UPDATE levels SET xp = $1, level = $2, last_xp_time = $3
+                    WHERE guild_id = $4 AND user_id = $5
+                """, current_xp, new_lvl, now, guild_id, user_id)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("""
+                    UPDATE levels SET xp = ?, level = ?, last_xp_time = ?
+                    WHERE guild_id = ? AND user_id = ?
+                """, (current_xp, new_lvl, now, guild_id, user_id))
+                await db.commit()
+
+        return leveled_up, new_lvl, current_xp
+
+    async def get_leaderboard(self, guild_id: int, limit: int = 10) -> List[Dict[str, Any]]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("""
+                    SELECT user_id, xp, level FROM levels
+                    WHERE guild_id = $1
+                    ORDER BY level DESC, xp DESC
+                    LIMIT $2
+                """, guild_id, limit)
+                return [dict(r) for r in rows]
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("""
+                    SELECT user_id, xp, level FROM levels
+                    WHERE guild_id = ?
+                    ORDER BY level DESC, xp DESC
+                    LIMIT ?
+                """, (guild_id, limit))
+                rows = await cursor.fetchall()
+                return [dict(r) for r in rows]
+
+    async def get_user_rank(self, guild_id: int, user_id: int) -> int:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                rank = await conn.fetchval("""
+                    SELECT COUNT(*) + 1 FROM levels
+                    WHERE guild_id = $1 AND (level > (SELECT level FROM levels WHERE guild_id = $1 AND user_id = $2)
+                       OR (level = (SELECT level FROM levels WHERE guild_id = $1 AND user_id = $2) AND xp > (SELECT xp FROM levels WHERE guild_id = $1 AND user_id = $2)))
+                """, guild_id, user_id)
+                return rank or 1
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("""
+                    SELECT COUNT(*) + 1 FROM levels
+                    WHERE guild_id = ? AND (level > (SELECT level FROM levels WHERE guild_id = ? AND user_id = ?)
+                       OR (level = (SELECT level FROM levels WHERE guild_id = ? AND user_id = ?) AND xp > (SELECT xp FROM levels WHERE guild_id = ? AND user_id = ?)))
+                """, (guild_id, guild_id, user_id, guild_id, user_id, guild_id, user_id))
+                row = await cursor.fetchone()
+                return row[0] if row else 1
+
+    async def set_user_xp(self, guild_id: int, user_id: int, xp: int, level: int):
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO levels (guild_id, user_id, xp, level) VALUES ($1, $2, $3, $4)
+                    ON CONFLICT(guild_id, user_id) DO UPDATE SET xp = EXCLUDED.xp, level = EXCLUDED.level
+                """, guild_id, user_id, xp, level)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("""
+                    INSERT INTO levels (guild_id, user_id, xp, level) VALUES (?, ?, ?, ?)
+                    ON CONFLICT(guild_id, user_id) DO UPDATE SET xp = excluded.xp, level = excluded.level
+                """, (guild_id, user_id, xp, level))
+                await db.commit()
+
+    async def reset_guild_levels(self, guild_id: int):
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("DELETE FROM levels WHERE guild_id = $1", guild_id)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("DELETE FROM levels WHERE guild_id = ?", (guild_id,))
+                await db.commit()
+
+    # ==========================================
+    # SPAM COMMAND WHITELIST (PERSISTENT DB)
+    # ==========================================
+    async def add_spam_user(self, user_id: int, added_by: int):
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO allowed_spam_users (user_id, added_by) VALUES ($1, $2)
+                    ON CONFLICT(user_id) DO NOTHING
+                """, user_id, added_by)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("""
+                    INSERT INTO allowed_spam_users (user_id, added_by) VALUES (?, ?)
+                    ON CONFLICT(user_id) DO NOTHING
+                """, (user_id, added_by))
+                await db.commit()
+        self._spam_cache.add(user_id)
+
+    async def remove_spam_user(self, user_id: int) -> bool:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                res = await conn.execute("DELETE FROM allowed_spam_users WHERE user_id = $1", user_id)
+                removed = "DELETE 1" in res
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("DELETE FROM allowed_spam_users WHERE user_id = ?", (user_id,))
+                await db.commit()
+                removed = cursor.rowcount > 0
+        if removed:
+            self._spam_cache.discard(user_id)
+        return removed
+
+    async def get_all_spam_users(self) -> List[int]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT user_id FROM allowed_spam_users")
+                return [int(r["user_id"]) for r in rows]
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("SELECT user_id FROM allowed_spam_users")
+                rows = await cursor.fetchall()
+                return [int(r[0]) for r in rows]
 
     # ==========================================
     # SHOP STOCK & INVENTORY

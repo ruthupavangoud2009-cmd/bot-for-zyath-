@@ -359,22 +359,51 @@ python main.py
 | `$whisper @user <msg>` | Encrypted message revealable only by target |
 | `$gunlock` / `$glock` | Lock or restore channel permissions |
 
-### 👑 Owner & Management
+### 👑 Owner, Bot Staff & No-Prefix (100% Persistent Database)
 | Command | Description |
 |---|---|
+| `$botstaff add <@user\|id> [role]` | Appoint authorized bot staff member (saved in Supabase/SQLite DB) |
+| `$botstaff remove <@user\|id>` | Revoke staff status from a user |
+| `$botstaff list` | List all authorized bot staff and roles |
+| `$np add <@user\|id>` | Whitelist member to execute all commands without prefix |
+| `$np remove <@user\|id>` | Revoke permanent no-prefix access |
+| `$np list` | View all authorized no-prefix users in database |
 | `$setsupport <url>` | Dynamically update official support server link |
 | `$support` | Display official support server invite card & button |
 | `$setavatar <url/upload>` | Change bot profile avatar directly from Discord |
 | `$setbanner <url/upload>` | Change bot banner profile directly from Discord |
 | `$setname <name>` | Change bot username and save configuration |
-| `$np <add\|remove\|list>` | Whitelist members to run all commands without prefix |
 | `$botstats` | View hardware diagnostics (CPU, RAM, DB latency) |
 | `$sync` | Globally synchronize Discord application slash commands |
 | `$reload <cog\|all>` | Hot-reload bot modules without downtime |
+
+### 💎 Elite Premium Subscriptions (Servers & Users)
+| Command | Description |
+|---|---|
+| `$premium` / `$perks` / `$vip` | View server & account premium status and active perks |
+| `$premium add <id> [time] [tier]` | Owner/Staff: Grant premium (e.g. `$premium add 123 30d` or `lifetime`) |
+| `$premium remove <id>` | Owner/Staff: Revoke premium status |
+| `$premium list` | Owner/Staff: List all active premium subscriptions |
+
+### 📊 Levels & Community XP (Lal & Active Servers)
+| Command | Description |
+|---|---|
+| `$rank [@user]` / `$lvl` | Inspect level dossier, XP progress bar `[████░░] 60%`, and server rank |
+| `$leaderboard` / `$levels` / `$top` | Top 10 most active chatters in the server |
+| `$setxp @user <xp> [level]` | Admin: Adjust member XP and level |
+| `$resetlevels` | Admin: Reset all server leveling and XP records |
+
+### 🤖 Auto-Responder & Triggers
+| Command | Description |
+|---|---|
+| `$ar` | View auto-responder dashboard and template placeholders |
+| `$ar add <trigger> \| <response>` | Create automated reply (e.g. `$ar add pricing \| Check #shop!`) |
+| `$ar remove <trigger>` | Delete custom auto-reply trigger |
+| `$ar list` | List all active server triggers and response previews |
 
 ---
 
 ## 🔒 Security & Privacy
 - All credentials should be stored in `.env`.
 - Dual database support: seamlessly connects to **Supabase PostgreSQL** or **SQLite** with automated fallback.
-- Database stores configuration, vouches, tickets, giveaways, economy, and automod settings locally with zero external telemetry.
+- Database stores configuration, vouches, tickets, giveaways, economy, automod, bot staff, no-prefix whitelist, premium records, levels, and auto-responders locally with zero external telemetry.

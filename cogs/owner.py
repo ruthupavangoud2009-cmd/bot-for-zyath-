@@ -3,6 +3,7 @@ from discord.ext import commands
 import os
 import psutil
 from datetime import datetime
+from typing import Optional
 from utils.embeds import standard_embed, success_embed, error_embed, info_embed
 from utils.database import db
 
@@ -16,20 +17,32 @@ def is_bot_owner():
         return False
     return commands.check(predicate)
 
+def is_bot_staff():
+    async def predicate(ctx: commands.Context):
+        if (
+            ctx.author.id in OWNER_IDS
+            or await ctx.bot.is_owner(ctx.author)
+            or db.is_staff_cached(ctx.author.id)
+        ):
+            return True
+        await ctx.send(embed=error_embed("Access Denied", "⛔ This command is restricted to authorized bot staff only."))
+        return False
+    return commands.check(predicate)
+
 class Owner(commands.Cog):
-    """Exclusive command suite for the 2 bot owners."""
+    """Exclusive command suite for bot owners and staff."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.start_time = datetime.utcnow()
 
     @commands.command(name="reload", help="Hot reload a cog or all cogs without downtime. E.g. $reload shop or $reload all")
-    @is_bot_owner()
+    @is_bot_staff()
     async def reload_cog(self, ctx: commands.Context, cog_name: str):
         cogs = [
             "moderation", "automod", "tickets", "welcomer", "giveaway", "gw_games",
             "economy", "utility", "vouches", "trades", "shop", "fun", "help",
-            "owner", "ai_manager", "slash"
+            "owner", "ai_manager", "slash", "premium", "levels", "autoresponder"
         ]
         
         target = cog_name.lower().replace("cogs.", "").strip()
@@ -122,41 +135,57 @@ class Owner(commands.Cog):
 
         await ctx.send(embed=embed)
 
+    # Helper to resolve user mention or raw ID
+    def _resolve_id(self, target: str) -> Optional[int]:
+        clean = target.strip().replace("<@", "").replace(">", "").replace("!", "")
+        return int(clean) if clean.isdigit() else None
+
+    # ==========================================
+    # NO-PREFIX SUITE ($np)
+    # ==========================================
     @commands.group(name="np", invoke_without_command=True, help="Manage no-prefix authorized users. E.g. $np add @user")
     @is_bot_owner()
     async def np_group(self, ctx: commands.Context):
         await ctx.send(embed=info_embed(
-            "No-Prefix Management",
-            "• `$np add @user` - Grant no-prefix access (run commands without `$`).\n"
-            "• `$np remove @user` - Revoke no-prefix access.\n"
+            "⚡ No-Prefix Management",
+            "• `$np add <@user|id>` - Grant no-prefix access (run commands without prefix `$`).\n"
+            "• `$np remove <@user|id>` - Revoke no-prefix access.\n"
             "• `$np list` - List all authorized no-prefix users."
         ))
 
     @np_group.command(name="add", help="Authorize a user to run all commands without prefix.")
     @is_bot_owner()
-    async def np_add(self, ctx: commands.Context, member: discord.Member):
-        await db.add_no_prefix_user(member.id, ctx.author.id)
+    async def np_add(self, ctx: commands.Context, target: str):
+        uid = self._resolve_id(target)
+        if not uid:
+            return await ctx.send(embed=error_embed("Invalid User", "Please mention a valid member or provide a 64-bit Discord User ID."))
+
+        await db.add_no_prefix_user(uid, ctx.author.id)
         await ctx.send(embed=success_embed(
             "No-Prefix Granted",
-            f"🌟 {member.mention} (`{member.id}`) can now run all bot commands **without prefix**!"
+            f"🌟 User <@{uid}> (`{uid}`) can now run all bot commands **without prefix**!\n*Saved permanently to database.*"
         ))
 
     @np_group.command(name="remove", aliases=["del", "rem"], help="Revoke no-prefix access for a user.")
     @is_bot_owner()
-    async def np_remove(self, ctx: commands.Context, member: discord.Member):
-        removed = await db.remove_no_prefix_user(member.id)
+    async def np_remove(self, ctx: commands.Context, target: str):
+        uid = self._resolve_id(target)
+        if not uid:
+            return await ctx.send(embed=error_embed("Invalid User", "Please mention a valid member or provide a 64-bit Discord User ID."))
+
+        removed = await db.remove_no_prefix_user(uid)
         if removed:
-            await ctx.send(embed=success_embed("No-Prefix Revoked", f"Removed no-prefix access for {member.mention}."))
+            await ctx.send(embed=success_embed("No-Prefix Revoked", f"Removed no-prefix access for <@{uid}> (`{uid}`)."))
         else:
-            await ctx.send(embed=error_embed("Not Found", f"{member.mention} was not in the no-prefix list."))
+            await ctx.send(embed=error_embed("Not Found", f"User <@{uid}> was not in the no-prefix database."))
 
     @np_group.command(name="list", help="List all users authorized to run commands without prefix.")
-    @is_bot_owner()
+    @is_bot_staff()
     async def np_list(self, ctx: commands.Context):
         users = await db.get_all_no_prefix_users()
-        desc = "**Default Owners (Permanent NP):**\n• <@1521774957065928734>\n• <@1505515188991033409>\n\n**Authorized Users:**\n"
+        desc = "**Default Owners (Permanent NP):**\n• <@1521774957065928734>\n• <@1505515188991033409>\n\n**Authorized Database Users:**\n"
         if not users:
-            desc += "*No additional users authorized.*"
+            desc += "*No additional users authorized in database.*"
         else:
             for u in users:
                 desc += f"• <@{u['user_id']}> (`{u['user_id']}`) — added by <@{u['added_by']}>\n"
@@ -165,6 +194,65 @@ class Owner(commands.Cog):
             title="⚡ No-Prefix Whitelist",
             description=desc,
             color=0x57F287
+        )
+        await ctx.send(embed=embed)
+
+    # ==========================================
+    # BOT STAFF SYSTEM ($botstaff / $staff)
+    # ==========================================
+    @commands.group(name="botstaff", aliases=["staff", "team"], invoke_without_command=True, help="Manage authorized bot staff. E.g. $botstaff")
+    @is_bot_staff()
+    async def botstaff_group(self, ctx: commands.Context):
+        embed = info_embed(
+            "🛡️ Bot Staff Management",
+            "• `$botstaff add <@user|id> [role]` - Appoint an authorized bot staff member.\n"
+            "• `$botstaff remove <@user|id>` - Remove staff status from a user.\n"
+            "• `$botstaff list` - List all active bot staff and roles.\n\n"
+            "*Bot staff have access to diagnostics, server audits, reload controls, and command bypasses.*"
+        )
+        await ctx.send(embed=embed)
+
+    @botstaff_group.command(name="add", help="Add an authorized bot staff member. E.g. $botstaff add @user Admin")
+    @is_bot_owner()
+    async def botstaff_add(self, ctx: commands.Context, target: str, *, role: str = "Staff"):
+        uid = self._resolve_id(target)
+        if not uid:
+            return await ctx.send(embed=error_embed("Invalid User", "Please mention a member or provide a Discord User ID."))
+
+        await db.add_bot_staff(uid, role, ctx.author.id)
+        await ctx.send(embed=success_embed(
+            "Bot Staff Appointed",
+            f"🛡️ Appointed <@{uid}> (`{uid}`) as **{role}**!\n*Saved permanently in database.*"
+        ))
+
+    @botstaff_group.command(name="remove", aliases=["del", "rem"], help="Remove an authorized bot staff member.")
+    @is_bot_owner()
+    async def botstaff_remove(self, ctx: commands.Context, target: str):
+        uid = self._resolve_id(target)
+        if not uid:
+            return await ctx.send(embed=error_embed("Invalid User", "Please mention a member or provide a Discord User ID."))
+
+        removed = await db.remove_bot_staff(uid)
+        if removed:
+            await ctx.send(embed=success_embed("Staff Removed", f"Successfully removed <@{uid}> (`{uid}`) from Bot Staff."))
+        else:
+            await ctx.send(embed=error_embed("Not Found", f"User <@{uid}> was not listed as Bot Staff."))
+
+    @botstaff_group.command(name="list", help="List all authorized bot staff members.")
+    @is_bot_staff()
+    async def botstaff_list(self, ctx: commands.Context):
+        staff = await db.get_all_bot_staff()
+        desc = "**Bot Owners (Root):**\n• <@1521774957065928734> (`1521774957065928734`)\n• <@1505515188991033409> (`1505515188991033409`)\n\n**Appointed Staff:**\n"
+        if not staff:
+            desc += "*No additional staff appointed in database.*"
+        else:
+            for s in staff:
+                desc += f"• <@{s['user_id']}> (`{s['user_id']}`) — **{s['role']}** (added by <@{s['added_by']}>)\n"
+
+        embed = standard_embed(
+            title="🛡️ Official Bot Staff Directory",
+            description=desc,
+            color=0x5865F2
         )
         await ctx.send(embed=embed)
 
