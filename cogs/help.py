@@ -82,7 +82,7 @@ MODULES = {
             ("`$shopadd <name> | <price> | [cat] | [desc]`", "Add a new product or service to the shop."),
             ("`$shopremove <item_id>` / `$shopdel`", "Delete a product from the shop catalog by ID."),
             ("`$shoplist`", "Admin inventory overview of all shop items and IDs."),
-            ("`$payment` / `$wallets` / `$pay`", "Display accepted payment methods and verified wallet addresses."),
+            ("`$payment` / `$wallets` / `$gateways`", "Display accepted payment methods and verified wallet addresses."),
             ("`$setpayment <name> | <addr> | [note]`", "Add a payment method (e.g. `$setpayment LTC | ltc1q... | Fast`)."),
             ("`$delpayment [ID or Name]`", "Delete a payment method by ID (e.g. `$delpayment 1`) or Name (`$delpayment LTC`), or run without args for an interactive dropdown!"),
             ("`$restock [#channel] [@everyone] <Item> | <Price> | [Details]`", "Broadcast restock alert with 1-click buy button."),
@@ -194,6 +194,59 @@ MODULES = {
             ("`$poll <question>`", "Create a thumbs up/down reaction poll.")
         ]
     },
+    "economy": {
+        "title": "💰 Virtual Economy & Casino",
+        "description": "Full server economy system with banking, jobs, crimes, and casino gambling games.",
+        "emoji": "💰",
+        "color": 0xF1C40F,
+        "commands": [
+            ("`$balance [@user]` / `$bal`", "View your wallet, bank balance, and net worth."),
+            ("`$daily`", "Claim your daily reward streak bonus (1,000 - 10,000 coins)."),
+            ("`$work`", "Work a shift at an honest job to earn steady cash."),
+            ("`$beg`", "Humbly beg the streets for spare change."),
+            ("`$crime`", "Attempt a high-risk street heist for big rewards or hefty fines."),
+            ("`$rob @user`", "Attempt to sneakily pickpocket coins from a member's wallet."),
+            ("`$deposit <amount|all>` / `$dep`", "Safely store coins into your protected bank vault."),
+            ("`$withdraw <amount|all>` / `$with`", "Withdraw coins from your bank vault into your wallet."),
+            ("`$pay @user <amount>`", "Transfer coins from your wallet directly to another member."),
+            ("`$slots <bet>`", "Spin the 3-reel casino slot machine for up to 10x jackpot payout!"),
+            ("`$gamble <bet>` / `$bet`", "Roll 1-100 against the house in high-stakes double-or-nothing!"),
+            ("`$baltop` / `$rich`", "View the top 10 richest server millionaires leaderboard.")
+        ]
+    },
+    "utility": {
+        "title": "🛠️ All-In-One Utility Suite",
+        "description": "Essential server utilities: AFK system, sticky messages, snipe, math, QR codes, and profile cards.",
+        "emoji": "🛠️",
+        "color": 0x3498DB,
+        "commands": [
+            ("`$afk [reason]`", "Set an AFK status. Automatically announces AFK when mentioned and welcomes you back upon chatting!"),
+            ("`$sticky <message>`", "Pin a persistent sticky message at the bottom of the channel that auto-reposts."),
+            ("`$unsticky`", "Remove the sticky message from the current channel."),
+            ("`$snipe`", "Recover and view the most recently deleted message in this channel."),
+            ("`$editsnipe`", "Inspect the original before & after content of the most recently edited message."),
+            ("`$calc <expression>`", "Safe arithmetic math calculator (e.g. `$calc (50 * 4) + 12`)."),
+            ("`$qrcode <text/url>`", "Instantly generate a high-res scannable QR Code image."),
+            ("`$roleinfo @role`", "Display detailed dossier, color, permissions, and member count for a role."),
+            ("`$channelinfo [#channel]`", "Display channel creation date, category, topic, and telemetry."),
+            ("`$servericon`", "Display full-resolution server icon."),
+            ("`$serverbanner`", "Display full-resolution server banner."),
+            ("`$userbanner [@user]`", "Display custom profile banner of a member.")
+        ]
+    },
+    "automod": {
+        "title": "🛡️ AutoMod Shield & Protection",
+        "description": "Real-time automated server protection filters: anti-invite, anti-spam, anti-mass-mentions, and anti-caps.",
+        "emoji": "🚨",
+        "color": 0xE74C3C,
+        "commands": [
+            ("`$automod`", "View the current server AutoMod protection status dashboard."),
+            ("`$automod anti_invites <on|off>`", "Toggle automatic deletion of unauthorized Discord invite links."),
+            ("`$automod anti_mentions <on|off>`", "Toggle automatic deletion of messages with excessive mass mentions (>5)."),
+            ("`$automod anti_spam <on|off>`", "Toggle automatic flood protection (>5 fast messages in 5 seconds)."),
+            ("`$automod anti_caps <on|off>`", "Toggle automatic suppression of messages with >70% excessive caps.")
+        ]
+    },
     "owner": {
         "title": "👑 Management & No-Prefix",
         "description": "Bot control, live diagnostics, reload, and no-prefix whitelist.",
@@ -222,6 +275,13 @@ MODULES = {
         "commands": [
             ("`/help`", "Open the clean interactive help desk modal & menu."),
             ("`/support`", "View official bot support server link and community resources."),
+            ("`/balance`", "View your wallet, bank, and net worth balance."),
+            ("`/daily`", "Claim your daily coin streak reward."),
+            ("`/slots <bet>`", "Spin casino slot reels."),
+            ("`/afk [reason]`", "Set your AFK status with return notices."),
+            ("`/snipe`", "View the last deleted message in this channel."),
+            ("`/qrcode <text>`", "Generate a QR Code."),
+            ("`/calc <expr>`", "Evaluate a safe arithmetic expression."),
             ("`/shop [category]`", "Browse the verified marketplace catalog with direct ticket ordering."),
             ("`/payment`", "View accepted payment methods and wallet addresses."),
             ("`/tos`", "View shop Terms of Service and warranty guidelines."),
@@ -255,6 +315,9 @@ class HelpSelect(discord.ui.Select):
             discord.SelectOption(label="Home", description="Return to main dashboard overview", emoji="🏠", value="home"),
             discord.SelectOption(label="Giveaways", description="Persistent giveaways, live countdowns, reroll", emoji="🎁", value="giveaways"),
             discord.SelectOption(label="GW Mini-Games", description="GTN, Scramble, Drop, Math, Rumble, Trivia", emoji="🎮", value="games"),
+            discord.SelectOption(label="Economy & Casino", description="Balance, daily, jobs, rob, slots, baltop", emoji="💰", value="economy"),
+            discord.SelectOption(label="Utility Suite", description="AFK, sticky, snipe, qrcode, calc, banners", emoji="🛠️", value="utility"),
+            discord.SelectOption(label="AutoMod Shield", description="Anti-invites, anti-spam, mentions, caps", emoji="🚨", value="automod"),
             discord.SelectOption(label="Moderation", description="Ban, kick, mute, warn, lock, purge", emoji="🛡️", value="moderation"),
             discord.SelectOption(label="Tickets", description="Panels, transcripts, claim, invoices", emoji="🎫", value="tickets"),
             discord.SelectOption(label="Vouches & Leaderboard", description="Reputation logger, top sellers, stats", emoji="⭐", value="vouches"),

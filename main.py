@@ -87,10 +87,13 @@ class ZyathBot(commands.Bot):
         # Load all cogs
         initial_extensions = [
             "cogs.moderation",
+            "cogs.automod",
             "cogs.tickets",
             "cogs.welcomer",
             "cogs.giveaway",
             "cogs.gw_games",
+            "cogs.economy",
+            "cogs.utility",
             "cogs.vouches",
             "cogs.trades",
             "cogs.shop",

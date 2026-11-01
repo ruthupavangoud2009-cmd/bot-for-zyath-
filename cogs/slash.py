@@ -2,6 +2,11 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import datetime
+import random
+import time
+import math
+import urllib.parse
+from typing import Optional
 from utils.embeds import standard_embed, success_embed, error_embed, info_embed
 from utils.database import db
 from cogs.help import HelpView
@@ -10,7 +15,7 @@ from cogs.trades import TradeStatusView, MercyModal
 from cogs.shop import ShopView
 
 class SlashCommands(commands.Cog):
-    """Top 20 essential application slash commands."""
+    """Top application slash commands."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -493,6 +498,219 @@ class SlashCommands(commands.Cog):
             color=0xED4245
         )
         await interaction.channel.send(embed=embed, view=SlashDropView())
+
+    # 25. /balance
+    @app_commands.command(name="balance", description="Check your or another member's bank and wallet balance.")
+    async def slash_balance(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+        target = member or interaction.user
+        eco = await db.get_economy(interaction.guild_id, target.id)
+        wallet = eco["wallet"]
+        bank = eco["bank"]
+        net_worth = wallet + bank
+
+        embed = standard_embed(
+            title=f"💰 {target.display_name}'s Financial Portfolio",
+            description=(
+                f"• **Wallet:** `{wallet:,}` coins 🪙\n"
+                f"• **Bank Vault:** `{bank:,}` coins 🏦\n"
+                f"• **Net Worth:** `{net_worth:,}` coins ✨\n"
+                f"• **Daily Streak:** `{eco.get('streak', 0)}` days 🔥"
+            ),
+            color=0xF1C40F,
+            thumbnail=target.display_avatar.url
+        )
+        embed.set_footer(text=f"Requested by {interaction.user.display_name}")
+        await interaction.response.send_message(embed=embed)
+
+    # 26. /daily
+    @app_commands.command(name="daily", description="Claim your daily streak reward bonus.")
+    async def slash_daily(self, interaction: discord.Interaction):
+        eco = await db.get_economy(interaction.guild_id, interaction.user.id)
+        now = time.time()
+        last_daily = eco["last_daily"]
+        cooldown = 86400
+
+        if (now - last_daily) < cooldown:
+            remaining = int(cooldown - (now - last_daily))
+            hours = remaining // 3600
+            minutes = (remaining % 3600) // 60
+            return await interaction.response.send_message(
+                embed=error_embed("Cooldown Active", f"⏳ You have already claimed your daily reward!\nCome back in **{hours}h {minutes}m**."),
+                ephemeral=True
+            )
+
+        streak = eco["streak"] + 1 if (now - last_daily) < (cooldown * 2) else 1
+        reward = 1000 + (streak * 100) + random.randint(50, 250)
+
+        await db.update_economy(
+            interaction.guild_id,
+            interaction.user.id,
+            wallet_delta=reward,
+            last_daily=now,
+            streak=streak
+        )
+
+        embed = success_embed(
+            "🎁 Daily Reward Claimed!",
+            f"You received **+{reward:,}** coins!\n\n"
+            f"🔥 **Current Streak:** `{streak}` days in a row!\n"
+            f"🪙 **New Wallet Balance:** `{eco['wallet'] + reward:,}` coins"
+        )
+        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        await interaction.response.send_message(embed=embed)
+
+    # 27. /slots
+    @app_commands.command(name="slots", description="Bet coins on the 3-reel casino slot machine.")
+    @app_commands.describe(bet="Amount of coins to gamble")
+    async def slash_slots(self, interaction: discord.Interaction, bet: int):
+        if bet < 10:
+            return await interaction.response.send_message(embed=error_embed("Invalid Bet", "Minimum bet is 10 coins."), ephemeral=True)
+
+        eco = await db.get_economy(interaction.guild_id, interaction.user.id)
+        if eco["wallet"] < bet:
+            return await interaction.response.send_message(
+                embed=error_embed("Insufficient Funds", f"You only have **{eco['wallet']:,}** coins in your wallet!"),
+                ephemeral=True
+            )
+
+        slot_emojis = ["🍒", "🍋", "🍇", "💎", "7️⃣", "🔔"]
+        reels = [random.choice(slot_emojis) for _ in range(3)]
+
+        if reels[0] == reels[1] == reels[2]:
+            multiplier = 10 if reels[0] == "7️⃣" else (7 if reels[0] == "💎" else 4)
+            winnings = bet * multiplier
+            await db.update_economy(interaction.guild_id, interaction.user.id, wallet_delta=winnings)
+            embed = standard_embed(
+                title="🎰 CASINO SLOTS — JACKPOT! 🎰",
+                description=(
+                    f"**[ {reels[0]} | {reels[1]} | {reels[2]} ]**\n\n"
+                    f"🎉 **TRIPLE MATCH!** You won **+{winnings:,} coins** ({multiplier}x payout)!\n"
+                    f"🪙 **New Wallet:** `{eco['wallet'] + winnings:,}` coins"
+                ),
+                color=0x57F287,
+                thumbnail=interaction.user.display_avatar.url
+            )
+        elif reels[0] == reels[1] or reels[1] == reels[2] or reels[0] == reels[2]:
+            winnings = int(bet * 1.5)
+            await db.update_economy(interaction.guild_id, interaction.user.id, wallet_delta=winnings - bet)
+            embed = standard_embed(
+                title="🎰 CASINO SLOTS — NICE WIN! 🎰",
+                description=(
+                    f"**[ {reels[0]} | {reels[1]} | {reels[2]} ]**\n\n"
+                    f"✨ **DOUBLE MATCH!** You won **+{winnings:,} coins** (1.5x)!\n"
+                    f"🪙 **New Wallet:** `{eco['wallet'] + (winnings - bet):,}` coins"
+                ),
+                color=0xFEE75C,
+                thumbnail=interaction.user.display_avatar.url
+            )
+        else:
+            await db.update_economy(interaction.guild_id, interaction.user.id, wallet_delta=-bet)
+            embed = standard_embed(
+                title="🎰 CASINO SLOTS — NO MATCH 🎰",
+                description=(
+                    f"**[ {reels[0]} | {reels[1]} | {reels[2]} ]**\n\n"
+                    f"❌ Better luck next spin! You lost **-{bet:,} coins**.\n"
+                    f"🪙 **New Wallet:** `{eco['wallet'] - bet:,}` coins"
+                ),
+                color=0xED4245,
+                thumbnail=interaction.user.display_avatar.url
+            )
+        await interaction.response.send_message(embed=embed)
+
+    # 28. /afk
+    @app_commands.command(name="afk", description="Set your AFK status with an optional reason.")
+    @app_commands.describe(reason="Reason for stepping away")
+    async def slash_afk(self, interaction: discord.Interaction, reason: Optional[str] = "AFK"):
+        clean_reason = (reason or "AFK").strip()[:150]
+        await db.set_afk(interaction.guild_id, interaction.user.id, clean_reason)
+        try:
+            if not interaction.user.display_name.startswith("[AFK]"):
+                new_nick = f"[AFK] {interaction.user.display_name}"[:32]
+                await interaction.user.edit(nick=new_nick, reason="Slash AFK")
+        except Exception:
+            pass
+        embed = standard_embed(
+            title="💤 AFK Status Set",
+            description=f"{interaction.user.mention} is now AFK: **{clean_reason}**\n*I will notify anyone who mentions you!*",
+            color=0x34495E
+        )
+        await interaction.response.send_message(embed=embed)
+
+    # 29. /snipe
+    @app_commands.command(name="snipe", description="View the most recently deleted message in this channel.")
+    async def slash_snipe(self, interaction: discord.Interaction):
+        util_cog = self.bot.get_cog("Utility")
+        if not util_cog or interaction.channel_id not in util_cog.snipes:
+            return await interaction.response.send_message(embed=error_embed("Snipe Empty", "There is nothing to snipe in this channel!"), ephemeral=True)
+        data = util_cog.snipes[interaction.channel_id]
+        author = data["author"]
+        content = data["content"]
+        time_str = f"<t:{int(data['time'])}:R>"
+        embed = standard_embed(
+            title="🎯 Sniped Message",
+            description=content or "*[No text content / Only media]*",
+            color=0xED4245
+        )
+        embed.set_author(name=f"{author.display_name} ({author.id})", icon_url=author.display_avatar.url)
+        embed.add_field(name="Deleted", value=time_str, inline=True)
+        if data.get("attachments"):
+            embed.add_field(name="Attachments", value="\n".join(f"[{a['filename']}]({a['url']})" for a in data["attachments"]), inline=False)
+        await interaction.response.send_message(embed=embed)
+
+    # 30. /qrcode
+    @app_commands.command(name="qrcode", description="Generate a scannable QR Code image.")
+    @app_commands.describe(text="The URL or text content to encode")
+    async def slash_qrcode(self, interaction: discord.Interaction, text: str):
+        encoded = urllib.parse.quote_plus(text)
+        qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={encoded}"
+        embed = standard_embed(
+            title="📱 QR Code Generator",
+            description=f"**Target Content:**\n```{text[:200]}```",
+            color=0x3498DB
+        )
+        embed.set_image(url=qr_url)
+        embed.set_footer(text=f"Requested by {interaction.user.display_name} • Scan with any smartphone camera")
+        await interaction.response.send_message(embed=embed)
+
+    # 31. /calc
+    @app_commands.command(name="calc", description="Safely evaluate an arithmetic math expression.")
+    @app_commands.describe(expression="Arithmetic math expression (e.g. (100 * 5) + 25)")
+    async def slash_calc(self, interaction: discord.Interaction, expression: str):
+        sanitized = expression.replace("^", "**").replace("x", "*").replace("X", "*")
+        if not all(c in "0123456789+-*/().% " for c in sanitized):
+            return await interaction.response.send_message(embed=error_embed("Invalid Characters", "Only numbers and math operators (`+`, `-`, `*`, `/`, `(`, `)`) are permitted."), ephemeral=True)
+        try:
+            result = eval(sanitized, {"__builtins__": None}, {})
+            embed = standard_embed(
+                title="🧮 Math Calculator",
+                description=f"**Expression:** `{expression}`\n**Result:** `{result}`",
+                color=0x2ECC71
+            )
+            await interaction.response.send_message(embed=embed)
+        except Exception as e:
+            await interaction.response.send_message(embed=error_embed("Calculation Error", f"Could not solve expression: `{e}`"), ephemeral=True)
+
+    # 32. /automod
+    @app_commands.command(name="automod", description="View server AutoMod shield protection status.")
+    @app_commands.default_permissions(administrator=True)
+    async def slash_automod(self, interaction: discord.Interaction):
+        settings = await db.get_automod_settings(interaction.guild_id)
+        def badge(val: bool):
+            return "🟢 **Active**" if val else "⚪ **Disabled**"
+
+        embed = standard_embed(
+            title=f"🛡️ Automod Security Center • {interaction.guild.name}",
+            description=(
+                f"Automated server protection safeguards your community 24/7.\n\n"
+                f"• **Anti-Invite Links:** {badge(settings['anti_invite'])}\n"
+                f"• **Anti-Spam Flooding:** {badge(settings['anti_spam'])}\n"
+                f"• **Anti-Mass Mentions (>5):** {badge(settings['anti_mention'])}\n"
+                f"• **Anti-Caps Flood (>70%):** {badge(settings['anti_caps'])}\n\n"
+                f"To toggle shields, use `$automod <invite|spam|mentions|caps> <on|off>`"
+            ),
+            color=0x5865F2
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(SlashCommands(bot))

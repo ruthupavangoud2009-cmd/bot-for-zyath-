@@ -161,6 +161,44 @@ CREATE TABLE IF NOT EXISTS giveaway_entrants (
     joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (giveaway_id, user_id)
 );
+
+CREATE TABLE IF NOT EXISTS economy (
+    guild_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    wallet BIGINT DEFAULT 1000,
+    bank BIGINT DEFAULT 0,
+    bank_max BIGINT DEFAULT 10000,
+    last_daily BIGINT DEFAULT 0,
+    last_work BIGINT DEFAULT 0,
+    last_crime BIGINT DEFAULT 0,
+    last_rob BIGINT DEFAULT 0,
+    streak INTEGER DEFAULT 0,
+    PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS afk_users (
+    guild_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    reason TEXT DEFAULT 'AFK',
+    afk_time BIGINT NOT NULL,
+    PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS sticky_messages (
+    channel_id BIGINT PRIMARY KEY,
+    guild_id BIGINT NOT NULL,
+    message_text TEXT NOT NULL,
+    last_message_id BIGINT
+);
+
+CREATE TABLE IF NOT EXISTS automod_settings (
+    guild_id BIGINT PRIMARY KEY,
+    anti_invite BOOLEAN DEFAULT FALSE,
+    anti_spam BOOLEAN DEFAULT FALSE,
+    anti_mention BOOLEAN DEFAULT FALSE,
+    anti_caps BOOLEAN DEFAULT FALSE,
+    log_channel_id BIGINT
+);
 """
 
 SQLITE_SCHEMA = """
@@ -301,6 +339,44 @@ CREATE TABLE IF NOT EXISTS giveaway_entrants (
     user_id INTEGER NOT NULL,
     joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (giveaway_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS economy (
+    guild_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    wallet INTEGER DEFAULT 1000,
+    bank INTEGER DEFAULT 0,
+    bank_max INTEGER DEFAULT 10000,
+    last_daily INTEGER DEFAULT 0,
+    last_work INTEGER DEFAULT 0,
+    last_crime INTEGER DEFAULT 0,
+    last_rob INTEGER DEFAULT 0,
+    streak INTEGER DEFAULT 0,
+    PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS afk_users (
+    guild_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    reason TEXT DEFAULT 'AFK',
+    afk_time INTEGER NOT NULL,
+    PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS sticky_messages (
+    channel_id INTEGER PRIMARY KEY,
+    guild_id INTEGER NOT NULL,
+    message_text TEXT NOT NULL,
+    last_message_id INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS automod_settings (
+    guild_id INTEGER PRIMARY KEY,
+    anti_invite BOOLEAN DEFAULT 0,
+    anti_spam BOOLEAN DEFAULT 0,
+    anti_mention BOOLEAN DEFAULT 0,
+    anti_caps BOOLEAN DEFAULT 0,
+    log_channel_id INTEGER
 );
 """
 
@@ -1350,5 +1426,277 @@ class Database:
                 row = await cursor.fetchone()
                 return row[0] if row else 0
 
+    # ==========================================
+    # ECONOMY OPERATIONS
+    # ==========================================
+    async def get_economy(self, guild_id: int, user_id: int) -> Dict[str, Any]:
+        default = {
+            "guild_id": guild_id, "user_id": user_id, "wallet": 1000, "bank": 0,
+            "bank_max": 10000, "last_daily": 0, "last_work": 0, "last_crime": 0,
+            "last_rob": 0, "streak": 0
+        }
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT * FROM economy WHERE guild_id = $1 AND user_id = $2", guild_id, user_id)
+                if row:
+                    return dict(row)
+                await conn.execute("""
+                    INSERT INTO economy (guild_id, user_id, wallet, bank, bank_max)
+                    VALUES ($1, $2, 1000, 0, 10000)
+                    ON CONFLICT DO NOTHING
+                """, guild_id, user_id)
+                return default
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("SELECT * FROM economy WHERE guild_id = ? AND user_id = ?", (guild_id, user_id))
+                row = await cursor.fetchone()
+                if row:
+                    return dict(row)
+                await db.execute("""
+                    INSERT OR IGNORE INTO economy (guild_id, user_id, wallet, bank, bank_max)
+                    VALUES (?, ?, 1000, 0, 10000)
+                """, (guild_id, user_id))
+                await db.commit()
+                return default
+
+    async def update_economy(self, guild_id: int, user_id: int, **kwargs) -> Dict[str, Any]:
+        curr = await self.get_economy(guild_id, user_id)
+        for k, v in kwargs.items():
+            if v is not None:
+                curr[k] = v
+
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO economy (guild_id, user_id, wallet, bank, bank_max, last_daily, last_work, last_crime, last_rob, streak)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    ON CONFLICT (guild_id, user_id) DO UPDATE SET
+                        wallet = EXCLUDED.wallet,
+                        bank = EXCLUDED.bank,
+                        bank_max = EXCLUDED.bank_max,
+                        last_daily = EXCLUDED.last_daily,
+                        last_work = EXCLUDED.last_work,
+                        last_crime = EXCLUDED.last_crime,
+                        last_rob = EXCLUDED.last_rob,
+                        streak = EXCLUDED.streak
+                """, guild_id, user_id, curr["wallet"], curr["bank"], curr["bank_max"],
+                    curr["last_daily"], curr["last_work"], curr["last_crime"], curr["last_rob"], curr["streak"])
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("""
+                    INSERT INTO economy (guild_id, user_id, wallet, bank, bank_max, last_daily, last_work, last_crime, last_rob, streak)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(guild_id, user_id) DO UPDATE SET
+                        wallet = excluded.wallet,
+                        bank = excluded.bank,
+                        bank_max = excluded.bank_max,
+                        last_daily = excluded.last_daily,
+                        last_work = excluded.last_work,
+                        last_crime = excluded.last_crime,
+                        last_rob = excluded.last_rob,
+                        streak = excluded.streak
+                """, (guild_id, user_id, curr["wallet"], curr["bank"], curr["bank_max"],
+                      curr["last_daily"], curr["last_work"], curr["last_crime"], curr["last_rob"], curr["streak"]))
+                await db.commit()
+        return curr
+
+    async def get_economy_leaderboard(self, guild_id: int, limit: int = 10) -> List[Dict[str, Any]]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("""
+                    SELECT user_id, wallet, bank, (wallet + bank) AS total
+                    FROM economy
+                    WHERE guild_id = $1
+                    ORDER BY total DESC
+                    LIMIT $2
+                """, guild_id, limit)
+                return [dict(r) for r in rows]
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("""
+                    SELECT user_id, wallet, bank, (wallet + bank) AS total
+                    FROM economy
+                    WHERE guild_id = ?
+                    ORDER BY total DESC
+                    LIMIT ?
+                """, (guild_id, limit))
+                rows = await cursor.fetchall()
+                return [dict(r) for r in rows]
+
+    # ==========================================
+    # AFK OPERATIONS
+    # ==========================================
+    async def set_afk(self, guild_id: int, user_id: int, reason: str) -> bool:
+        now_ts = int(time.time())
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO afk_users (guild_id, user_id, reason, afk_time)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT (guild_id, user_id) DO UPDATE SET
+                        reason = EXCLUDED.reason,
+                        afk_time = EXCLUDED.afk_time
+                """, guild_id, user_id, reason, now_ts)
+                return True
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("""
+                    INSERT INTO afk_users (guild_id, user_id, reason, afk_time)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(guild_id, user_id) DO UPDATE SET
+                        reason = excluded.reason,
+                        afk_time = excluded.afk_time
+                """, (guild_id, user_id, reason, now_ts))
+                await db.commit()
+                return True
+
+    async def get_afk(self, guild_id: int, user_id: int) -> Optional[Dict[str, Any]]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT * FROM afk_users WHERE guild_id = $1 AND user_id = $2", guild_id, user_id)
+                return dict(row) if row else None
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("SELECT * FROM afk_users WHERE guild_id = ? AND user_id = ?", (guild_id, user_id))
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+
+    async def remove_afk(self, guild_id: int, user_id: int) -> bool:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                res = await conn.execute("DELETE FROM afk_users WHERE guild_id = $1 AND user_id = $2", guild_id, user_id)
+                return "DELETE 1" in res
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("DELETE FROM afk_users WHERE guild_id = ? AND user_id = ?", (guild_id, user_id))
+                await db.commit()
+                return cursor.rowcount > 0
+
+    # ==========================================
+    # STICKY MESSAGE OPERATIONS
+    # ==========================================
+    async def set_sticky(self, channel_id: int, guild_id: int, message_text: str) -> bool:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO sticky_messages (channel_id, guild_id, message_text, last_message_id)
+                    VALUES ($1, $2, $3, NULL)
+                    ON CONFLICT (channel_id) DO UPDATE SET
+                        message_text = EXCLUDED.message_text
+                """, channel_id, guild_id, message_text)
+                return True
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("""
+                    INSERT INTO sticky_messages (channel_id, guild_id, message_text, last_message_id)
+                    VALUES (?, ?, ?, NULL)
+                    ON CONFLICT(channel_id) DO UPDATE SET
+                        message_text = excluded.message_text
+                """, (channel_id, guild_id, message_text))
+                await db.commit()
+                return True
+
+    async def get_sticky(self, channel_id: int) -> Optional[Dict[str, Any]]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT * FROM sticky_messages WHERE channel_id = $1", channel_id)
+                return dict(row) if row else None
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("SELECT * FROM sticky_messages WHERE channel_id = ?", (channel_id,))
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+
+    async def update_sticky_last_id(self, channel_id: int, last_message_id: int) -> bool:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("UPDATE sticky_messages SET last_message_id = $1 WHERE channel_id = $2", last_message_id, channel_id)
+                return True
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("UPDATE sticky_messages SET last_message_id = ? WHERE channel_id = ?", (last_message_id, channel_id))
+                await db.commit()
+                return True
+
+    async def remove_sticky(self, channel_id: int) -> bool:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                res = await conn.execute("DELETE FROM sticky_messages WHERE channel_id = $1", channel_id)
+                return "DELETE 1" in res
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("DELETE FROM sticky_messages WHERE channel_id = ?", (channel_id,))
+                await db.commit()
+                return cursor.rowcount > 0
+
+    # ==========================================
+    # AUTOMOD OPERATIONS
+    # ==========================================
+    async def get_automod_settings(self, guild_id: int) -> Dict[str, Any]:
+        default = {
+            "guild_id": guild_id, "anti_invite": False, "anti_spam": False,
+            "anti_mention": False, "anti_caps": False, "log_channel_id": None
+        }
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT * FROM automod_settings WHERE guild_id = $1", guild_id)
+                if row:
+                    return dict(row)
+                await conn.execute("INSERT INTO automod_settings (guild_id) VALUES ($1) ON CONFLICT DO NOTHING", guild_id)
+                return default
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("SELECT * FROM automod_settings WHERE guild_id = ?", (guild_id,))
+                row = await cursor.fetchone()
+                if row:
+                    res = dict(row)
+                    res["anti_invite"] = bool(res.get("anti_invite", 0))
+                    res["anti_spam"] = bool(res.get("anti_spam", 0))
+                    res["anti_mention"] = bool(res.get("anti_mention", 0))
+                    res["anti_caps"] = bool(res.get("anti_caps", 0))
+                    return res
+                await db.execute("INSERT OR IGNORE INTO automod_settings (guild_id) VALUES (?)", (guild_id,))
+                await db.commit()
+                return default
+
+    async def set_automod_setting(self, guild_id: int, key: str, value: Any) -> bool:
+        curr = await self.get_automod_settings(guild_id)
+        curr[key] = value
+
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO automod_settings (guild_id, anti_invite, anti_spam, anti_mention, anti_caps, log_channel_id)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    ON CONFLICT (guild_id) DO UPDATE SET
+                        anti_invite = EXCLUDED.anti_invite,
+                        anti_spam = EXCLUDED.anti_spam,
+                        anti_mention = EXCLUDED.anti_mention,
+                        anti_caps = EXCLUDED.anti_caps,
+                        log_channel_id = EXCLUDED.log_channel_id
+                """, guild_id, curr["anti_invite"], curr["anti_spam"], curr["anti_mention"], curr["anti_caps"], curr["log_channel_id"])
+                return True
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("""
+                    INSERT INTO automod_settings (guild_id, anti_invite, anti_spam, anti_mention, anti_caps, log_channel_id)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(guild_id) DO UPDATE SET
+                        anti_invite = excluded.anti_invite,
+                        anti_spam = excluded.anti_spam,
+                        anti_mention = excluded.anti_mention,
+                        anti_caps = excluded.anti_caps,
+                        log_channel_id = excluded.log_channel_id
+                """, (guild_id, 1 if curr["anti_invite"] else 0, 1 if curr["anti_spam"] else 0,
+                      1 if curr["anti_mention"] else 0, 1 if curr["anti_caps"] else 0, curr["log_channel_id"]))
+                await db.commit()
+                return True
+
 db = Database()
+
 

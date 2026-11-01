@@ -27,8 +27,9 @@ class Owner(commands.Cog):
     @is_bot_owner()
     async def reload_cog(self, ctx: commands.Context, cog_name: str):
         cogs = [
-            "moderation", "tickets", "welcomer", "giveaway", "gw_games", "vouches",
-            "trades", "shop", "fun", "help", "owner", "ai_manager", "slash"
+            "moderation", "automod", "tickets", "welcomer", "giveaway", "gw_games",
+            "economy", "utility", "vouches", "trades", "shop", "fun", "help",
+            "owner", "ai_manager", "slash"
         ]
         
         target = cog_name.lower().replace("cogs.", "").strip()

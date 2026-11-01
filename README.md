@@ -295,6 +295,86 @@ python main.py
 
 ---
 
+### 💰 Virtual Economy & Casino
+| Command | Description |
+|---|---|
+| `$balance [@user]` / `$bal` | Check wallet, bank vault, and net worth portfolio |
+| `$daily` | Claim daily streak reward (1,000 - 10,000 coins) |
+| `$work` | Work a shift to earn steady income |
+| `$beg` | Beg on the streets for coins |
+| `$crime` | High-stakes street heist for huge cash or fines |
+| `$rob @user` | Attempt to pickpocket coins from another member |
+| `$deposit <amount\|all>` | Store wallet coins in safe bank vault |
+| `$withdraw <amount\|all>` | Withdraw coins from bank vault |
+| `$pay @user <amount>` | Transfer coins to another member |
+| `$slots <bet>` | Spin 3-reel casino slot machine for up to 10x jackpot |
+| `$gamble <bet>` / `$bet` | High-stakes roll against the house |
+| `$baltop` / `$rich` | Top 10 richest server leaderboard |
+
+### 🛠️ All-In-One Utility Suite
+| Command | Description |
+|---|---|
+| `$afk [reason]` | Set AFK status; notifies mentioners and welcomes you back |
+| `$sticky <message>` | Pin persistent message to bottom of channel |
+| `$unsticky` | Remove channel sticky message |
+| `$snipe` | Recover and view most recently deleted message |
+| `$editsnipe` | View before and after content of last edited message |
+| `$calc <expression>` | Safe arithmetic calculator |
+| `$qrcode <text/url>` | Generate scannable high-res QR code image |
+| `$roleinfo @role` | Detailed role dossier, permissions, and member count |
+| `$channelinfo [#channel]` | Channel creation date, topic, category, and stats |
+| `$servericon` | Full-resolution server icon |
+| `$serverbanner` | Full-resolution server banner |
+| `$userbanner [@user]` | Profile banner image of member |
+
+### 🛡️ AutoMod Shield & Protection
+| Command | Description |
+|---|---|
+| `$automod` | View 24/7 security status dashboard |
+| `$automod invite <on\|off>` | Toggle Anti-Invite link deletion filter |
+| `$automod spam <on\|off>` | Toggle Anti-Spam flooding rate limiter |
+| `$automod mentions <on\|off>` | Toggle Anti-Mass Mentions (>5) filter |
+| `$automod caps <on\|off>` | Toggle Anti-Caps (>70%) filter |
+
+### 🎁 Giveaways & Event Mini-Games
+| Command | Description |
+|---|---|
+| `$gstart <time> [winners] <prize>` | Start persistent giveaway with live countdowns & role reqs |
+| `$gend <msg_id>` / `$greroll <msg_id>` | End giveaway immediately or reroll new winner(s) |
+| `$glist` / `$gcancel <msg_id>` | List running giveaways or cancel without drawing |
+| `$gtn <min> <max> [prize]` | Guess The Number with secret DM & `➕`/`➖` feedback |
+| `$gtnhint` / `$gtnstop` | Drop parity/range clues or stop GTN game |
+| `$blacktea [prize]` / `$wordbomb` | BlackTea: 3 lives, 10s bomb timer word game |
+| `$roulette [prize]` | Russian Roulette: 6 chambers, 1 bullet PvP elimination |
+| `$tictactoe @user [prize]` | 3x3 interactive button PvP duel |
+| `$rps [@user] [prize]` | Rock Paper Scissors secret button duel |
+| `$blackjack [prize]` / `$bj` | Casino Blackjack 21 vs Dealer AI |
+| `$scramble [prize]` | Word Scramble speed unscrambling |
+| `$drop [delay] [prize]` | Reaction Drop: first to click glowing button |
+| `$mathrace [diff] [prize]` | Speed arithmetic race |
+| `$rumble [time] [prize]` | Battle Royale elimination tournament |
+| `$trivia [prize]` | Interactive 4-choice trivia race |
+| `$rollgw [time] [prize]` | High Roll dice duel |
+| `$hack @user` | Simulated animated hacker infiltration |
+| `$whisper @user <msg>` | Encrypted message revealable only by target |
+| `$gunlock` / `$glock` | Lock or restore channel permissions |
+
+### 👑 Owner & Management
+| Command | Description |
+|---|---|
+| `$setsupport <url>` | Dynamically update official support server link |
+| `$support` | Display official support server invite card & button |
+| `$setavatar <url/upload>` | Change bot profile avatar directly from Discord |
+| `$setbanner <url/upload>` | Change bot banner profile directly from Discord |
+| `$setname <name>` | Change bot username and save configuration |
+| `$np <add\|remove\|list>` | Whitelist members to run all commands without prefix |
+| `$botstats` | View hardware diagnostics (CPU, RAM, DB latency) |
+| `$sync` | Globally synchronize Discord application slash commands |
+| `$reload <cog\|all>` | Hot-reload bot modules without downtime |
+
+---
+
 ## 🔒 Security & Privacy
 - All credentials should be stored in `.env`.
-- Database (`zyath_bot.db`) stores configuration, vouches, and warnings locally without external tracking.
+- Dual database support: seamlessly connects to **Supabase PostgreSQL** or **SQLite** with automated fallback.
+- Database stores configuration, vouches, tickets, giveaways, economy, and automod settings locally with zero external telemetry.

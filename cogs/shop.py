@@ -446,7 +446,7 @@ class Shop(commands.Cog):
         )
         await ctx.send(embed=embed)
 
-    @commands.command(name="payment", aliases=["pay", "wallets", "payments"], help="View accepted shop payment methods and wallet addresses.")
+    @commands.command(name="payment", aliases=["wallets", "payments", "gateways"], help="View accepted shop payment methods and wallet addresses.")
     async def view_payment(self, ctx: commands.Context):
         methods = await db.get_payment_methods(ctx.guild.id)
         if not methods:
