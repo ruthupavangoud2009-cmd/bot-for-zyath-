@@ -257,6 +257,98 @@ CREATE TABLE IF NOT EXISTS allowed_spam_users (
     added_by BIGINT NOT NULL,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS shop_orders (
+    order_id TEXT PRIMARY KEY,
+    receipt_id TEXT UNIQUE,
+    guild_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    product_name TEXT NOT NULL,
+    quantity INTEGER DEFAULT 1,
+    total_usd DOUBLE PRECISION NOT NULL,
+    total_ltc DOUBLE PRECISION DEFAULT 0.0,
+    status TEXT DEFAULT 'pending_payment',
+    payment_method TEXT DEFAULT 'Litecoin',
+    ltc_address TEXT,
+    txid TEXT,
+    claimed_by BIGINT,
+    ticket_channel_id BIGINT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS used_ltc_transactions (
+    txid TEXT PRIMARY KEY,
+    order_id TEXT NOT NULL,
+    guild_id BIGINT NOT NULL,
+    amount_ltc DOUBLE PRECISION NOT NULL,
+    confirmations INTEGER DEFAULT 1,
+    verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS user_ltc_wallets (
+    user_id BIGINT PRIMARY KEY,
+    ltc_address TEXT NOT NULL,
+    linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS customer_feedback (
+    id SERIAL PRIMARY KEY,
+    guild_id BIGINT NOT NULL,
+    order_id TEXT UNIQUE NOT NULL,
+    user_id BIGINT NOT NULL,
+    stars INTEGER DEFAULT 5,
+    description TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS shop_legit_vouches (
+    guild_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS shop_config (
+    guild_id BIGINT PRIMARY KEY,
+    shop_name TEXT DEFAULT 'Jack''s Shop',
+    ltc_address TEXT,
+    deal_log_channel_id BIGINT,
+    feedback_channel_id BIGINT,
+    purchase_category_id BIGINT,
+    staff_role_id BIGINT,
+    min_confirmations INTEGER DEFAULT 1,
+    currency TEXT DEFAULT 'USD'
+);
+
+CREATE TABLE IF NOT EXISTS shop_coupons (
+    id SERIAL PRIMARY KEY,
+    guild_id BIGINT NOT NULL,
+    code TEXT NOT NULL,
+    discount_percent DOUBLE PRECISION DEFAULT 10.0,
+    max_uses INTEGER DEFAULT 100,
+    uses_count INTEGER DEFAULT 0,
+    expires_at TIMESTAMP,
+    UNIQUE (guild_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS shopping_carts (
+    guild_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    item_id INTEGER NOT NULL,
+    quantity INTEGER DEFAULT 1,
+    PRIMARY KEY (guild_id, user_id, item_id)
+);
+
+CREATE TABLE IF NOT EXISTS deal_audit_logs (
+    id SERIAL PRIMARY KEY,
+    guild_id BIGINT NOT NULL,
+    receipt_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    staff_id BIGINT NOT NULL,
+    details TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 SQLITE_SCHEMA = """
@@ -491,6 +583,98 @@ CREATE TABLE IF NOT EXISTS reaction_roles (
 CREATE TABLE IF NOT EXISTS allowed_spam_users (
     user_id INTEGER PRIMARY KEY,
     added_by INTEGER NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS shop_orders (
+    order_id TEXT PRIMARY KEY,
+    receipt_id TEXT UNIQUE,
+    guild_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    product_name TEXT NOT NULL,
+    quantity INTEGER DEFAULT 1,
+    total_usd REAL NOT NULL,
+    total_ltc REAL DEFAULT 0.0,
+    status TEXT DEFAULT 'pending_payment',
+    payment_method TEXT DEFAULT 'Litecoin',
+    ltc_address TEXT,
+    txid TEXT,
+    claimed_by INTEGER,
+    ticket_channel_id INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS used_ltc_transactions (
+    txid TEXT PRIMARY KEY,
+    order_id TEXT NOT NULL,
+    guild_id INTEGER NOT NULL,
+    amount_ltc REAL NOT NULL,
+    confirmations INTEGER DEFAULT 1,
+    verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS user_ltc_wallets (
+    user_id INTEGER PRIMARY KEY,
+    ltc_address TEXT NOT NULL,
+    linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS customer_feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id INTEGER NOT NULL,
+    order_id TEXT UNIQUE NOT NULL,
+    user_id INTEGER NOT NULL,
+    stars INTEGER DEFAULT 5,
+    description TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS shop_legit_vouches (
+    guild_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS shop_config (
+    guild_id INTEGER PRIMARY KEY,
+    shop_name TEXT DEFAULT 'Jack''s Shop',
+    ltc_address TEXT,
+    deal_log_channel_id INTEGER,
+    feedback_channel_id INTEGER,
+    purchase_category_id INTEGER,
+    staff_role_id INTEGER,
+    min_confirmations INTEGER DEFAULT 1,
+    currency TEXT DEFAULT 'USD'
+);
+
+CREATE TABLE IF NOT EXISTS shop_coupons (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id INTEGER NOT NULL,
+    code TEXT NOT NULL,
+    discount_percent REAL DEFAULT 10.0,
+    max_uses INTEGER DEFAULT 100,
+    uses_count INTEGER DEFAULT 0,
+    expires_at TIMESTAMP,
+    UNIQUE (guild_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS shopping_carts (
+    guild_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    item_id INTEGER NOT NULL,
+    quantity INTEGER DEFAULT 1,
+    PRIMARY KEY (guild_id, user_id, item_id)
+);
+
+CREATE TABLE IF NOT EXISTS deal_audit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id INTEGER NOT NULL,
+    receipt_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    staff_id INTEGER NOT NULL,
+    details TEXT,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 """
@@ -2400,6 +2584,802 @@ class Database:
                 await db.commit()
                 return True
 
+    # ==========================================
+    # SHOP CONFIG & BRANDING
+    # ==========================================
+    async def get_shop_config(self, guild_id: int) -> Dict[str, Any]:
+        default = {
+            "guild_id": guild_id,
+            "shop_name": "Jack's Shop",
+            "ltc_address": None,
+            "deal_log_channel_id": None,
+            "feedback_channel_id": None,
+            "purchase_category_id": None,
+            "staff_role_id": None,
+            "min_confirmations": 1,
+            "currency": "USD"
+        }
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT * FROM shop_config WHERE guild_id = $1", guild_id)
+                if row:
+                    res = dict(row)
+                    if not res.get("shop_name"):
+                        res["shop_name"] = "Jack's Shop"
+                    return res
+                return default
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("SELECT * FROM shop_config WHERE guild_id = ?", (guild_id,))
+                row = await cursor.fetchone()
+                if row:
+                    res = dict(row)
+                    if not res.get("shop_name"):
+                        res["shop_name"] = "Jack's Shop"
+                    return res
+                return default
+
+    async def set_shop_config(self, guild_id: int, **kwargs) -> bool:
+        curr = await self.get_shop_config(guild_id)
+        for k, v in kwargs.items():
+            if k in curr:
+                curr[k] = v
+
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO shop_config (guild_id, shop_name, ltc_address, deal_log_channel_id, feedback_channel_id, purchase_category_id, staff_role_id, min_confirmations, currency)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                    ON CONFLICT (guild_id) DO UPDATE SET
+                        shop_name = EXCLUDED.shop_name,
+                        ltc_address = EXCLUDED.ltc_address,
+                        deal_log_channel_id = EXCLUDED.deal_log_channel_id,
+                        feedback_channel_id = EXCLUDED.feedback_channel_id,
+                        purchase_category_id = EXCLUDED.purchase_category_id,
+                        staff_role_id = EXCLUDED.staff_role_id,
+                        min_confirmations = EXCLUDED.min_confirmations,
+                        currency = EXCLUDED.currency
+                """, guild_id, curr["shop_name"], curr["ltc_address"], curr["deal_log_channel_id"],
+                    curr["feedback_channel_id"], curr["purchase_category_id"], curr["staff_role_id"],
+                    curr["min_confirmations"], curr["currency"])
+                return True
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("""
+                    INSERT INTO shop_config (guild_id, shop_name, ltc_address, deal_log_channel_id, feedback_channel_id, purchase_category_id, staff_role_id, min_confirmations, currency)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(guild_id) DO UPDATE SET
+                        shop_name = excluded.shop_name,
+                        ltc_address = excluded.ltc_address,
+                        deal_log_channel_id = excluded.deal_log_channel_id,
+                        feedback_channel_id = excluded.feedback_channel_id,
+                        purchase_category_id = excluded.purchase_category_id,
+                        staff_role_id = excluded.staff_role_id,
+                        min_confirmations = excluded.min_confirmations,
+                        currency = excluded.currency
+                """, (guild_id, curr["shop_name"], curr["ltc_address"], curr["deal_log_channel_id"],
+                      curr["feedback_channel_id"], curr["purchase_category_id"], curr["staff_role_id"],
+                      curr["min_confirmations"], curr["currency"]))
+                await db.commit()
+                return True
+
+    # ==========================================
+    # USER LITECOIN WALLETS
+    # ==========================================
+    async def link_user_ltc(self, user_id: int, address: str) -> bool:
+        clean = address.strip()
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO user_ltc_wallets (user_id, ltc_address)
+                    VALUES ($1, $2)
+                    ON CONFLICT (user_id) DO UPDATE SET
+                        ltc_address = EXCLUDED.ltc_address,
+                        linked_at = CURRENT_TIMESTAMP
+                """, user_id, clean)
+                return True
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("""
+                    INSERT INTO user_ltc_wallets (user_id, ltc_address)
+                    VALUES (?, ?)
+                    ON CONFLICT(user_id) DO UPDATE SET
+                        ltc_address = excluded.ltc_address,
+                        linked_at = CURRENT_TIMESTAMP
+                """, (user_id, clean))
+                await db.commit()
+                return True
+
+    async def unlink_user_ltc(self, user_id: int) -> bool:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                res = await conn.execute("DELETE FROM user_ltc_wallets WHERE user_id = $1", user_id)
+                return "DELETE 1" in res
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("DELETE FROM user_ltc_wallets WHERE user_id = ?", (user_id,))
+                await db.commit()
+                return cursor.rowcount > 0
+
+    async def get_user_ltc(self, user_id: int) -> Optional[str]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                val = await conn.fetchval("SELECT ltc_address FROM user_ltc_wallets WHERE user_id = $1", user_id)
+                return val
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("SELECT ltc_address FROM user_ltc_wallets WHERE user_id = ?", (user_id,))
+                row = await cursor.fetchone()
+                return row[0] if row else None
+
+    # ==========================================
+    # SHOP ORDERS & INVOICES
+    # ==========================================
+    async def create_shop_order(
+        self,
+        guild_id: int,
+        user_id: int,
+        product_name: str,
+        quantity: int,
+        total_usd: float,
+        total_ltc: float,
+        payment_method: str = "Litecoin",
+        ltc_address: str = None,
+        ticket_channel_id: int = None
+    ) -> Dict[str, Any]:
+        import random
+        order_id = f"ORD-{random.randint(100000, 999999)}"
+        receipt_id = f"RD-{random.randint(100000, 999999)}"
+
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO shop_orders (
+                        order_id, receipt_id, guild_id, user_id, product_name, quantity,
+                        total_usd, total_ltc, status, payment_method, ltc_address, ticket_channel_id
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                """, order_id, receipt_id, guild_id, user_id, product_name, quantity,
+                    total_usd, total_ltc, 'pending_payment', payment_method, ltc_address, ticket_channel_id)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("""
+                    INSERT INTO shop_orders (
+                        order_id, receipt_id, guild_id, user_id, product_name, quantity,
+                        total_usd, total_ltc, status, payment_method, ltc_address, ticket_channel_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (order_id, receipt_id, guild_id, user_id, product_name, quantity,
+                      total_usd, total_ltc, 'pending_payment', payment_method, ltc_address, ticket_channel_id))
+                await db.commit()
+
+        return await self.get_shop_order(order_id)
+
+    async def get_shop_order(self, order_id: str) -> Optional[Dict[str, Any]]:
+        clean = order_id.strip()
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT * FROM shop_orders WHERE order_id = $1", clean)
+                return dict(row) if row else None
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("SELECT * FROM shop_orders WHERE order_id = ?", (clean,))
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+
+    async def get_order_by_receipt(self, receipt_id: str) -> Optional[Dict[str, Any]]:
+        clean = receipt_id.strip()
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT * FROM shop_orders WHERE receipt_id = $1", clean)
+                return dict(row) if row else None
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("SELECT * FROM shop_orders WHERE receipt_id = ?", (clean,))
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+
+    async def get_user_orders(self, guild_id: int, user_id: int) -> List[Dict[str, Any]]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT * FROM shop_orders WHERE guild_id = $1 AND user_id = $2 ORDER BY created_at DESC", guild_id, user_id)
+                return [dict(r) for r in rows]
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("SELECT * FROM shop_orders WHERE guild_id = ? AND user_id = ? ORDER BY created_at DESC", (guild_id, user_id))
+                rows = await cursor.fetchall()
+                return [dict(r) for r in rows]
+
+    async def get_guild_orders(self, guild_id: int, limit: int = 50, status: str = None) -> List[Dict[str, Any]]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                if status:
+                    rows = await conn.fetch("SELECT * FROM shop_orders WHERE guild_id = $1 AND status = $2 ORDER BY created_at DESC LIMIT $3", guild_id, status, limit)
+                else:
+                    rows = await conn.fetch("SELECT * FROM shop_orders WHERE guild_id = $1 ORDER BY created_at DESC LIMIT $2", guild_id, limit)
+                return [dict(r) for r in rows]
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                if status:
+                    cursor = await db.execute("SELECT * FROM shop_orders WHERE guild_id = ? AND status = ? ORDER BY created_at DESC LIMIT ?", (guild_id, status, limit))
+                else:
+                    cursor = await db.execute("SELECT * FROM shop_orders WHERE guild_id = ? ORDER BY created_at DESC LIMIT ?", (guild_id, limit))
+                rows = await cursor.fetchall()
+                return [dict(r) for r in rows]
+
+    async def claim_order(self, order_id: str, staff_id: int) -> bool:
+        clean = order_id.strip()
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                res = await conn.execute("UPDATE shop_orders SET claimed_by = $1 WHERE order_id = $2", staff_id, clean)
+                return "UPDATE 1" in res
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("UPDATE shop_orders SET claimed_by = ? WHERE order_id = ?", (staff_id, clean))
+                await db.commit()
+                return cursor.rowcount > 0
+
+    async def complete_order(self, order_id: str, staff_id: int = None, txid: str = None) -> Optional[Dict[str, Any]]:
+        clean = order_id.strip()
+        order = await self.get_shop_order(clean)
+        if not order:
+            return None
+
+        # Prevent duplicate completion
+        if order.get("status") == "completed":
+            return order
+
+        final_staff = staff_id or order.get("claimed_by") or 0
+        final_txid = txid or order.get("txid")
+
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    UPDATE shop_orders
+                    SET status = 'completed', claimed_by = $1, txid = $2, completed_at = CURRENT_TIMESTAMP
+                    WHERE order_id = $3
+                """, final_staff, final_txid, clean)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("""
+                    UPDATE shop_orders
+                    SET status = 'completed', claimed_by = ?, txid = ?, completed_at = CURRENT_TIMESTAMP
+                    WHERE order_id = ?
+                """, (final_staff, final_txid, clean))
+                await db.commit()
+
+        return await self.get_shop_order(clean)
+
+    async def cancel_order(self, order_id: str, reason: str = None) -> bool:
+        clean = order_id.strip()
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                res = await conn.execute("UPDATE shop_orders SET status = 'cancelled' WHERE order_id = $1 AND status != 'completed'", clean)
+                return "UPDATE 1" in res
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("UPDATE shop_orders SET status = 'cancelled' WHERE order_id = ? AND status != 'completed'", (clean,))
+                await db.commit()
+                return cursor.rowcount > 0
+
+    async def refund_order(self, order_id: str, reason: str = None) -> bool:
+        clean = order_id.strip()
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                res = await conn.execute("UPDATE shop_orders SET status = 'refunded' WHERE order_id = $1", clean)
+                return "UPDATE 1" in res
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("UPDATE shop_orders SET status = 'refunded' WHERE order_id = ?", (clean,))
+                await db.commit()
+                return cursor.rowcount > 0
+
+    # ==========================================
+    # USED LTC TRANSACTIONS (PREVENT REUSE)
+    # ==========================================
+    async def record_used_txid(self, txid: str, order_id: str, guild_id: int, amount_ltc: float, confirmations: int = 1) -> bool:
+        clean_tx = txid.strip().lower()
+        if await self.is_txid_used(clean_tx):
+            return False
+        try:
+            if self.is_postgres and self.pool:
+                async with self.pool.acquire() as conn:
+                    await conn.execute("""
+                        INSERT INTO used_ltc_transactions (txid, order_id, guild_id, amount_ltc, confirmations)
+                        VALUES ($1, $2, $3, $4, $5)
+                    """, clean_tx, order_id, guild_id, amount_ltc, confirmations)
+                    return True
+            else:
+                async with aiosqlite.connect(self.sqlite_path) as db:
+                    await db.execute("""
+                        INSERT INTO used_ltc_transactions (txid, order_id, guild_id, amount_ltc, confirmations)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (clean_tx, order_id, guild_id, amount_ltc, confirmations))
+                    await db.commit()
+                    return True
+        except Exception:
+            return False
+
+    async def is_txid_used(self, txid: str) -> bool:
+        clean_tx = txid.strip().lower()
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                val = await conn.fetchval("SELECT txid FROM used_ltc_transactions WHERE LOWER(txid) = $1", clean_tx)
+                return bool(val)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("SELECT txid FROM used_ltc_transactions WHERE LOWER(txid) = ?", (clean_tx,))
+                row = await cursor.fetchone()
+                return bool(row)
+
+    # ==========================================
+    # DIGITAL PRODUCT DELIVERY (DISPENSE STOCK)
+    # ==========================================
+    async def dispense_stock(self, guild_id: int, item_name: str, quantity: int = 1) -> List[str]:
+        clean = item_name.strip()
+        dispensed = []
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                async with conn.transaction():
+                    rows = await conn.fetch("""
+                        SELECT id, stock_data FROM shop_stock
+                        WHERE guild_id = $1 AND LOWER(item_name) = LOWER($2) AND is_used = FALSE
+                        LIMIT $3
+                        FOR UPDATE
+                    """, guild_id, clean, quantity)
+                    if rows:
+                        ids = [r["id"] for r in rows]
+                        dispensed = [r["stock_data"] for r in rows]
+                        await conn.execute("UPDATE shop_stock SET is_used = TRUE WHERE id = ANY($1)", ids)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("""
+                    SELECT id, stock_data FROM shop_stock
+                    WHERE guild_id = ? AND LOWER(item_name) = LOWER(?) AND is_used = 0
+                    LIMIT ?
+                """, (guild_id, clean, quantity))
+                rows = await cursor.fetchall()
+                if rows:
+                    ids = [r[0] for r in rows]
+                    dispensed = [r[1] for r in rows]
+                    placeholders = ",".join("?" * len(ids))
+                    await db.execute(f"UPDATE shop_stock SET is_used = 1 WHERE id IN ({placeholders})", ids)
+                    await db.commit()
+        return dispensed
+
+    # ==========================================
+    # CUSTOMER METRICS & LIFETIME SPEND
+    # ==========================================
+    async def get_customer_lifetime_spend(self, guild_id: int, user_id: int) -> float:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                val = await conn.fetchval("""
+                    SELECT COALESCE(SUM(total_usd), 0.0) FROM shop_orders
+                    WHERE guild_id = $1 AND user_id = $2 AND status = 'completed'
+                """, guild_id, user_id)
+                return round(float(val or 0.0), 2)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("""
+                    SELECT COALESCE(SUM(total_usd), 0.0) FROM shop_orders
+                    WHERE guild_id = ? AND user_id = ? AND status = 'completed'
+                """, (guild_id, user_id))
+                row = await cursor.fetchone()
+                return round(float(row[0] if row else 0.0), 2)
+
+    async def get_customer_profile(self, guild_id: int, user_id: int) -> Dict[str, Any]:
+        lifetime_spend = await self.get_customer_lifetime_spend(guild_id, user_id)
+        orders = await self.get_user_orders(guild_id, user_id)
+        completed_orders = [o for o in orders if o.get("status") == "completed"]
+        refunded_orders = [o for o in orders if o.get("status") == "refunded"]
+        active_orders = [o for o in orders if o.get("status") in ("pending_payment", "paid")]
+
+        # Determine loyalty tier
+        if lifetime_spend >= 500:
+            tier = "💎 Diamond VIP"
+        elif lifetime_spend >= 200:
+            tier = "🥇 Gold Member"
+        elif lifetime_spend >= 50:
+            tier = "🥈 Silver Regular"
+        elif lifetime_spend > 0:
+            tier = "🥉 Bronze Patron"
+        else:
+            tier = "🌱 New Customer"
+
+        # Linked LTC
+        ltc_addr = await self.get_user_ltc(user_id)
+
+        # Reviews by this customer
+        reviews = await self.get_customer_feedback(guild_id, user_id=user_id)
+        avg_rating = round(sum(r["stars"] for r in reviews) / len(reviews), 1) if reviews else 5.0
+
+        return {
+            "guild_id": guild_id,
+            "user_id": user_id,
+            "total_orders": len(orders),
+            "completed_orders": len(completed_orders),
+            "active_orders": len(active_orders),
+            "refunded_orders": len(refunded_orders),
+            "lifetime_spend": lifetime_spend,
+            "loyalty_tier": tier,
+            "ltc_address": ltc_addr,
+            "total_reviews": len(reviews),
+            "avg_review_rating": avg_rating,
+            "recent_orders": orders[:5]
+        }
+
+    async def get_customer_spending_leaderboard(self, guild_id: int, limit: int = 10) -> List[Dict[str, Any]]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("""
+                    SELECT user_id, COALESCE(SUM(total_usd), 0.0) as total_spent, COUNT(*) as orders_count
+                    FROM shop_orders
+                    WHERE guild_id = $1 AND status = 'completed'
+                    GROUP BY user_id
+                    ORDER BY total_spent DESC
+                    LIMIT $2
+                """, guild_id, limit)
+                return [{"user_id": r["user_id"], "total_spent": round(float(r["total_spent"]), 2), "orders_count": r["orders_count"]} for r in rows]
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("""
+                    SELECT user_id, COALESCE(SUM(total_usd), 0.0) as total_spent, COUNT(*) as orders_count
+                    FROM shop_orders
+                    WHERE guild_id = ? AND status = 'completed'
+                    GROUP BY user_id
+                    ORDER BY total_spent DESC
+                    LIMIT ?
+                """, (guild_id, limit))
+                rows = await cursor.fetchall()
+                return [{"user_id": r[0], "total_spent": round(float(r[1]), 2), "orders_count": r[2]} for r in rows]
+
+    # ==========================================
+    # CUSTOMER FEEDBACK & STAR RATINGS
+    # ==========================================
+    async def add_customer_feedback(self, guild_id: int, order_id: str, user_id: int, stars: int, description: str) -> int:
+        clean_order = order_id.strip()
+        clamped_stars = max(1, min(5, stars))
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                fid = await conn.fetchval("""
+                    INSERT INTO customer_feedback (guild_id, order_id, user_id, stars, description)
+                    VALUES ($1, $2, $3, $4, $5)
+                    RETURNING id
+                """, guild_id, clean_order, user_id, clamped_stars, description.strip())
+                return fid
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("""
+                    INSERT INTO customer_feedback (guild_id, order_id, user_id, stars, description)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (guild_id, clean_order, user_id, clamped_stars, description.strip()))
+                await db.commit()
+                return cursor.lastrowid
+
+    async def get_customer_feedback(self, guild_id: int, user_id: int = None, order_id: str = None) -> List[Dict[str, Any]]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                if order_id:
+                    rows = await conn.fetch("SELECT * FROM customer_feedback WHERE guild_id = $1 AND order_id = $2", guild_id, order_id.strip())
+                elif user_id:
+                    rows = await conn.fetch("SELECT * FROM customer_feedback WHERE guild_id = $1 AND user_id = $2 ORDER BY id DESC", guild_id, user_id)
+                else:
+                    rows = await conn.fetch("SELECT * FROM customer_feedback WHERE guild_id = $1 ORDER BY id DESC", guild_id)
+                return [dict(r) for r in rows]
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                if order_id:
+                    cursor = await db.execute("SELECT * FROM customer_feedback WHERE guild_id = ? AND order_id = ?", (guild_id, order_id.strip()))
+                elif user_id:
+                    cursor = await db.execute("SELECT * FROM customer_feedback WHERE guild_id = ? AND user_id = ? ORDER BY id DESC", (guild_id, user_id))
+                else:
+                    cursor = await db.execute("SELECT * FROM customer_feedback WHERE guild_id = ? ORDER BY id DESC", (guild_id,))
+                rows = await cursor.fetchall()
+                return [dict(r) for r in rows]
+
+    async def get_feedback_stats(self, guild_id: int) -> Dict[str, Any]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("""
+                    SELECT COUNT(*) as total, COALESCE(AVG(stars), 0.0) as avg_stars
+                    FROM customer_feedback WHERE guild_id = $1
+                """, guild_id)
+                total = row["total"] if row else 0
+                avg = round(float(row["avg_stars"]), 2) if row else 5.0
+                return {"total": total, "avg_stars": avg}
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("""
+                    SELECT COUNT(*), COALESCE(AVG(stars), 0.0)
+                    FROM customer_feedback WHERE guild_id = ?
+                """, (guild_id,))
+                row = await cursor.fetchone()
+                total = row[0] if row else 0
+                avg = round(float(row[1]), 2) if row else 5.0
+                return {"total": total, "avg_stars": avg}
+
+    async def delete_customer_feedback(self, guild_id: int, review_id: int) -> bool:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                res = await conn.execute("DELETE FROM customer_feedback WHERE id = $1 AND guild_id = $2", review_id, guild_id)
+                return "DELETE 1" in res
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("DELETE FROM customer_feedback WHERE id = ? AND guild_id = ?", (review_id, guild_id))
+                await db.commit()
+                return cursor.rowcount > 0
+
+    # ==========================================
+    # LEGIT COUNTER & VOUCH SYSTEM
+    # ==========================================
+    async def toggle_legit_vouch(self, guild_id: int, user_id: int) -> Tuple[bool, int]:
+        has_vouched = await self.has_user_vouched_legit(guild_id, user_id)
+        if has_vouched:
+            await self.remove_legit_vouch(guild_id, user_id)
+            total = await self.get_legit_count(guild_id)
+            return False, total
+        else:
+            if self.is_postgres and self.pool:
+                async with self.pool.acquire() as conn:
+                    await conn.execute("""
+                        INSERT INTO shop_legit_vouches (guild_id, user_id)
+                        VALUES ($1, $2)
+                        ON CONFLICT DO NOTHING
+                    """, guild_id, user_id)
+            else:
+                async with aiosqlite.connect(self.sqlite_path) as db:
+                    await db.execute("INSERT OR IGNORE INTO shop_legit_vouches (guild_id, user_id) VALUES (?, ?)", (guild_id, user_id))
+                    await db.commit()
+            total = await self.get_legit_count(guild_id)
+            return True, total
+
+    async def has_user_vouched_legit(self, guild_id: int, user_id: int) -> bool:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                val = await conn.fetchval("SELECT user_id FROM shop_legit_vouches WHERE guild_id = $1 AND user_id = $2", guild_id, user_id)
+                return bool(val)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("SELECT user_id FROM shop_legit_vouches WHERE guild_id = ? AND user_id = ?", (guild_id, user_id))
+                row = await cursor.fetchone()
+                return bool(row)
+
+    async def get_legit_count(self, guild_id: int) -> int:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                val = await conn.fetchval("SELECT COUNT(*) FROM shop_legit_vouches WHERE guild_id = $1", guild_id)
+                return val or 0
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("SELECT COUNT(*) FROM shop_legit_vouches WHERE guild_id = ?", (guild_id,))
+                row = await cursor.fetchone()
+                return row[0] if row else 0
+
+    async def get_legit_vouches(self, guild_id: int, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT * FROM shop_legit_vouches WHERE guild_id = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3", guild_id, limit, offset)
+                return [dict(r) for r in rows]
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("SELECT * FROM shop_legit_vouches WHERE guild_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?", (guild_id, limit, offset))
+                rows = await cursor.fetchall()
+                return [dict(r) for r in rows]
+
+    async def remove_legit_vouch(self, guild_id: int, user_id: int) -> bool:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                res = await conn.execute("DELETE FROM shop_legit_vouches WHERE guild_id = $1 AND user_id = $2", guild_id, user_id)
+                return "DELETE 1" in res
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("DELETE FROM shop_legit_vouches WHERE guild_id = ? AND user_id = ?", (guild_id, user_id))
+                await db.commit()
+                return cursor.rowcount > 0
+
+    async def reset_legit_vouches(self, guild_id: int) -> int:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                res = await conn.execute("DELETE FROM shop_legit_vouches WHERE guild_id = $1", guild_id)
+                parts = res.split()
+                return int(parts[1]) if len(parts) > 1 else 0
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("DELETE FROM shop_legit_vouches WHERE guild_id = ?", (guild_id,))
+                await db.commit()
+                return cursor.rowcount
+
+    # ==========================================
+    # COUPONS & DISCOUNTS
+    # ==========================================
+    async def create_coupon(self, guild_id: int, code: str, discount_percent: float, max_uses: int = 100) -> int:
+        clean = code.strip().upper()
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                cid = await conn.fetchval("""
+                    INSERT INTO shop_coupons (guild_id, code, discount_percent, max_uses)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT (guild_id, code) DO UPDATE SET
+                        discount_percent = EXCLUDED.discount_percent,
+                        max_uses = EXCLUDED.max_uses
+                    RETURNING id
+                """, guild_id, clean, discount_percent, max_uses)
+                return cid
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("""
+                    INSERT INTO shop_coupons (guild_id, code, discount_percent, max_uses)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(guild_id, code) DO UPDATE SET
+                        discount_percent = excluded.discount_percent,
+                        max_uses = excluded.max_uses
+                """, (guild_id, clean, discount_percent, max_uses))
+                await db.commit()
+                return cursor.lastrowid
+
+    async def get_coupon(self, guild_id: int, code: str) -> Optional[Dict[str, Any]]:
+        clean = code.strip().upper()
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT * FROM shop_coupons WHERE guild_id = $1 AND code = $2", guild_id, clean)
+                return dict(row) if row else None
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("SELECT * FROM shop_coupons WHERE guild_id = ? AND code = ?", (guild_id, clean))
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+
+    async def use_coupon(self, guild_id: int, code: str) -> bool:
+        clean = code.strip().upper()
+        coupon = await self.get_coupon(guild_id, clean)
+        if not coupon or coupon["uses_count"] >= coupon["max_uses"]:
+            return False
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("UPDATE shop_coupons SET uses_count = uses_count + 1 WHERE id = $1", coupon["id"])
+                return True
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("UPDATE shop_coupons SET uses_count = uses_count + 1 WHERE id = ?", (coupon["id"],))
+                await db.commit()
+                return True
+
+    # ==========================================
+    # SHOPPING CART
+    # ==========================================
+    async def add_to_cart(self, guild_id: int, user_id: int, item_id: int, quantity: int = 1) -> bool:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO shopping_carts (guild_id, user_id, item_id, quantity)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT (guild_id, user_id, item_id) DO UPDATE SET
+                        quantity = shopping_carts.quantity + EXCLUDED.quantity
+                """, guild_id, user_id, item_id, quantity)
+                return True
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("""
+                    INSERT INTO shopping_carts (guild_id, user_id, item_id, quantity)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(guild_id, user_id, item_id) DO UPDATE SET
+                        quantity = shopping_carts.quantity + excluded.quantity
+                """, (guild_id, user_id, item_id, quantity))
+                await db.commit()
+                return True
+
+    async def get_cart(self, guild_id: int, user_id: int) -> List[Dict[str, Any]]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("""
+                    SELECT c.item_id, c.quantity, i.name, i.price, i.category
+                    FROM shopping_carts c
+                    JOIN shop_items i ON c.item_id = i.id
+                    WHERE c.guild_id = $1 AND c.user_id = $2
+                """, guild_id, user_id)
+                return [dict(r) for r in rows]
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("""
+                    SELECT c.item_id, c.quantity, i.name, i.price, i.category
+                    FROM shopping_carts c
+                    JOIN shop_items i ON c.item_id = i.id
+                    WHERE c.guild_id = ? AND c.user_id = ?
+                """, (guild_id, user_id))
+                rows = await cursor.fetchall()
+                return [dict(r) for r in rows]
+
+    async def remove_from_cart(self, guild_id: int, user_id: int, item_id: int) -> bool:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                res = await conn.execute("DELETE FROM shopping_carts WHERE guild_id = $1 AND user_id = $2 AND item_id = $3", guild_id, user_id, item_id)
+                return "DELETE 1" in res
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("DELETE FROM shopping_carts WHERE guild_id = ? AND user_id = ? AND item_id = ?", (guild_id, user_id, item_id))
+                await db.commit()
+                return cursor.rowcount > 0
+
+    async def clear_cart(self, guild_id: int, user_id: int) -> bool:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("DELETE FROM shopping_carts WHERE guild_id = $1 AND user_id = $2", guild_id, user_id)
+                return True
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("DELETE FROM shopping_carts WHERE guild_id = ? AND user_id = ?", (guild_id, user_id))
+                await db.commit()
+                return True
+
+    # ==========================================
+    # REVENUE & SALES ANALYTICS
+    # ==========================================
+    async def get_shop_revenue_stats(self, guild_id: int) -> Dict[str, Any]:
+        orders = await self.get_guild_orders(guild_id, limit=500)
+        completed = [o for o in orders if o.get("status") == "completed"]
+
+        total_rev = sum(o.get("total_usd", 0.0) for o in completed)
+        now = datetime.datetime.utcnow()
+
+        # Compute daily & monthly revenue
+        daily_rev = 0.0
+        monthly_rev = 0.0
+        product_sales: Dict[str, int] = {}
+
+        for o in completed:
+            p_name = o.get("product_name", "Unknown")
+            product_sales[p_name] = product_sales.get(p_name, 0) + o.get("quantity", 1)
+            created_at = o.get("created_at")
+            if created_at:
+                try:
+                    if isinstance(created_at, str):
+                        dt = datetime.datetime.fromisoformat(created_at.replace("Z", "+00:00").split(".")[0])
+                    else:
+                        dt = created_at
+                    if (now - dt).days < 1:
+                        daily_rev += o.get("total_usd", 0.0)
+                    if (now - dt).days < 30:
+                        monthly_rev += o.get("total_usd", 0.0)
+                except Exception:
+                    pass
+
+        top_products = sorted(product_sales.items(), key=lambda x: x[1], reverse=True)[:5]
+
+        return {
+            "total_revenue": round(total_rev, 2),
+            "daily_revenue": round(daily_rev, 2),
+            "monthly_revenue": round(monthly_rev, 2),
+            "completed_orders": len(completed),
+            "total_orders": len(orders),
+            "top_products": top_products
+        }
+
+    async def log_deal_audit(self, guild_id: int, receipt_id: str, action: str, staff_id: int, details: str) -> int:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                aid = await conn.fetchval("""
+                    INSERT INTO deal_audit_logs (guild_id, receipt_id, action, staff_id, details)
+                    VALUES ($1, $2, $3, $4, $5)
+                    RETURNING id
+                """, guild_id, receipt_id, action, staff_id, details)
+                return aid
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute("""
+                    INSERT INTO deal_audit_logs (guild_id, receipt_id, action, staff_id, details)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (guild_id, receipt_id, action, staff_id, details))
+                await db.commit()
+                return cursor.lastrowid
+
 db = Database()
+
 
 

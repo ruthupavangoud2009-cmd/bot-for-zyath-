@@ -905,6 +905,253 @@ class SlashCommands(commands.Cog):
             f"💵 Added **+{added:,} coins** to {user.mention}'s wallet!\n🪙 **New Wallet Balance:** {wallet_display}"
         ))
 
+    # --- ADVANCED SHOP SLASH COMMANDS ---
+    @app_commands.command(name="product", description="Manage or browse shop products.")
+    @app_commands.describe(action="Action: list, info, add, remove, or stock", query="Product name or ID", price="Price e.g. $5.00", category="Category name")
+    @app_commands.choices(action=[
+        app_commands.Choice(name="list", value="list"),
+        app_commands.Choice(name="info", value="info"),
+        app_commands.Choice(name="stock", value="stock"),
+        app_commands.Choice(name="add", value="add"),
+        app_commands.Choice(name="remove", value="remove")
+    ])
+    async def slash_product(
+        self,
+        interaction: discord.Interaction,
+        action: str,
+        query: Optional[str] = None,
+        price: Optional[str] = None,
+        category: Optional[str] = "General"
+    ):
+        if action == "list":
+            items = await db.get_shop_items(interaction.guild_id)
+            if not items:
+                return await interaction.response.send_message(embed=info_embed("Products", "No products listed in the shop."), ephemeral=True)
+            desc = "\n".join([f"• **#{i['id']} • {i['name']}** — `{i['price']}` (`{i['category']}`)" for i in items[:15]])
+            embed = standard_embed(title=f"📦 {interaction.guild.name} • Products", description=desc, color=0x2ECC71)
+            await interaction.response.send_message(embed=embed)
+        elif action == "info":
+            if not query:
+                return await interaction.response.send_message(embed=error_embed("Missing Name", "Please specify a product name or ID."), ephemeral=True)
+            items = await db.get_shop_items(interaction.guild_id)
+            matched = next((i for i in items if query.lower() in i["name"].lower() or (query.isdigit() and int(query) == i["id"])), None)
+            if not matched:
+                return await interaction.response.send_message(embed=error_embed("Not Found", f"No product matched `{query}`."), ephemeral=True)
+            count = await db.get_item_stock_count(interaction.guild_id, matched["name"])
+            embed = standard_embed(
+                title=f"📦 {matched['name']} • #{matched['id']}",
+                description=f"• **Price:** `{matched['price']}`\n• **Category:** `{matched['category']}`\n• **Stock:** `{count}`\n• **Details:**\n```{matched['description'] or 'Instant delivery.'}```",
+                color=0x2ECC71
+            )
+            await interaction.response.send_message(embed=embed)
+        elif action == "add":
+            if not interaction.user.guild_permissions.administrator:
+                return await interaction.response.send_message(embed=error_embed("Unauthorized", "Admin only."), ephemeral=True)
+            if not query or not price:
+                return await interaction.response.send_message(embed=error_embed("Missing Info", "Please specify both `query` (name) and `price`."), ephemeral=True)
+            item_id = await db.add_shop_item(interaction.guild_id, query, price, category or "General", "")
+            await interaction.response.send_message(embed=success_embed("Product Added", f"Created product **#{item_id} • {query}** ({price})!"))
+        elif action == "remove":
+            if not interaction.user.guild_permissions.administrator:
+                return await interaction.response.send_message(embed=error_embed("Unauthorized", "Admin only."), ephemeral=True)
+            if not query or not query.isdigit():
+                return await interaction.response.send_message(embed=error_embed("Invalid ID", "Provide a numeric product ID to remove."), ephemeral=True)
+            removed = await db.remove_shop_item(interaction.guild_id, int(query))
+            if removed:
+                await interaction.response.send_message(embed=success_embed("Product Removed", f"Deleted product `#{query}`."))
+            else:
+                await interaction.response.send_message(embed=error_embed("Not Found", f"No product with ID `#{query}`."), ephemeral=True)
+        elif action == "stock":
+            counts = await db.get_stock_counts(interaction.guild_id)
+            desc = "\n".join([f"• **{k}:** `{v}` in stock" for k, v in counts.items()]) if counts else "No digital stock recorded."
+            embed = standard_embed(title="📊 Product Stock", description=desc, color=0x2ECC71)
+            await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="buy", description="Quickly initiate a purchase for an item.")
+    @app_commands.describe(product="Product name or ID")
+    async def slash_buy(self, interaction: discord.Interaction, product: Optional[str] = None):
+        cfg = await db.get_shop_config(interaction.guild_id)
+        shop_title = cfg.get("shop_name", "Jack's Shop")
+        embed = success_embed(
+            f"🛒 {shop_title} • Ready to Order",
+            f"To purchase **{product or 'items'}**, open a private purchase ticket on our Purchase Panel!\n"
+            f"Use `/shoppanel` or click **Initiate Purchase** on the panel to get an automated invoice and blockchain verification."
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="cart", description="Manage or view your personal shopping cart.")
+    @app_commands.describe(action="Cart action (view, add, clear)", item_id="Item ID to add", quantity="Item quantity")
+    @app_commands.choices(action=[
+        app_commands.Choice(name="view", value="view"),
+        app_commands.Choice(name="add", value="add"),
+        app_commands.Choice(name="clear", value="clear")
+    ])
+    async def slash_cart(self, interaction: discord.Interaction, action: str, item_id: Optional[int] = None, quantity: Optional[int] = 1):
+        if action == "add" and item_id:
+            await db.add_to_cart(interaction.guild_id, interaction.user.id, item_id, quantity or 1)
+            await interaction.response.send_message(embed=success_embed("Cart Updated", f"Added `{quantity}x` of item `#{item_id}` to your cart."), ephemeral=True)
+        elif action == "clear":
+            await db.clear_cart(interaction.guild_id, interaction.user.id)
+            await interaction.response.send_message(embed=success_embed("Cart Cleared", "Your cart is now empty."), ephemeral=True)
+        else:
+            items = await db.get_cart(interaction.guild_id, interaction.user.id)
+            if not items:
+                return await interaction.response.send_message(embed=info_embed("Shopping Cart", "Your cart is currently empty."), ephemeral=True)
+            desc = "\n".join([f"• **{ci['name']}** (x{ci['quantity']}) — `{ci['price']}`" for ci in items])
+            embed = standard_embed(title=f"🛒 {interaction.user.display_name}'s Cart", description=desc, color=0x2ECC71)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="order", description="Inspect order status, view receipts, or manage fulfillment.")
+    @app_commands.describe(action="Order action", order_id="Order ID (e.g. ORD-123456)")
+    @app_commands.choices(action=[
+        app_commands.Choice(name="view", value="view"),
+        app_commands.Choice(name="history", value="history"),
+        app_commands.Choice(name="claim", value="claim"),
+        app_commands.Choice(name="complete", value="complete"),
+        app_commands.Choice(name="cancel", value="cancel")
+    ])
+    async def slash_order(self, interaction: discord.Interaction, action: str, order_id: Optional[str] = None):
+        if action == "history":
+            orders = await db.get_user_orders(interaction.guild_id, interaction.user.id)
+            if not orders:
+                return await interaction.response.send_message(embed=info_embed("Orders", "No orders on record."), ephemeral=True)
+            desc = "\n".join([f"• `{o['order_id']}` — **{o['product_name']}** (`${o['total_usd']:.2f}`) — `{o['status'].title()}`" for o in orders[:8]])
+            embed = standard_embed(title="📦 Order History", description=desc, color=0x2ECC71)
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        if not order_id:
+            return await interaction.response.send_message(embed=error_embed("Missing ID", "Please specify an `order_id`."), ephemeral=True)
+
+        order = await db.get_shop_order(order_id)
+        if not order:
+            return await interaction.response.send_message(embed=error_embed("Not Found", f"No order found with ID `{order_id}`."), ephemeral=True)
+
+        if action == "view":
+            tx_str = f"[`{shorten_address(order['txid'])}`](https://litecoinspace.org/tx/{order['txid']})" if order.get("txid") else "Pending"
+            embed = standard_embed(
+                title=f"📦 Order Details • {order['order_id']}",
+                description=(
+                    f"• **Product:** `{order['product_name']}` (x{order['quantity']})\n"
+                    f"• **Total:** `${order['total_usd']:.2f}` ({order['total_ltc']:.6f} LTC)\n"
+                    f"• **Status:** `{order['status'].title()}`\n"
+                    f"• **Receipt:** `{order['receipt_id']}`\n"
+                    f"• **TXID:** {tx_str}"
+                ),
+                color=0x2ECC71 if order["status"] == "completed" else 0xFEE75C
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        elif action == "claim":
+            if not interaction.user.guild_permissions.manage_messages:
+                return await interaction.response.send_message(embed=error_embed("Unauthorized", "Staff only."), ephemeral=True)
+            await db.claim_order(order_id, interaction.user.id)
+            await interaction.response.send_message(embed=success_embed("Order Claimed", f"Claimed Order `{order_id}`."))
+        elif action == "complete":
+            if not interaction.user.guild_permissions.manage_messages:
+                return await interaction.response.send_message(embed=error_embed("Unauthorized", "Staff only."), ephemeral=True)
+            completed = await db.complete_order(order_id, staff_id=interaction.user.id)
+            cfg = await db.get_shop_config(interaction.guild_id)
+            await log_deal_completed(interaction.guild, completed, completed_by=interaction.user, custom_branding=cfg.get("shop_name"))
+            await interaction.response.send_message(embed=success_embed("Completed", f"Order `{order_id}` marked complete and logged."))
+        elif action == "cancel":
+            await db.cancel_order(order_id)
+            await interaction.response.send_message(embed=warning_embed("Cancelled", f"Order `{order_id}` cancelled."))
+
+    @app_commands.command(name="orders", description="List your recent purchases.")
+    async def slash_orders(self, interaction: discord.Interaction):
+        orders = await db.get_user_orders(interaction.guild_id, interaction.user.id)
+        if not orders:
+            return await interaction.response.send_message(embed=info_embed("Orders", "No orders on file."), ephemeral=True)
+        desc = "\n".join([f"• `{o['order_id']}` — **{o['product_name']}** (`${o['total_usd']:.2f}`) — `{o['status'].title()}`" for o in orders[:8]])
+        embed = standard_embed(title="📦 Your Orders", description=desc, color=0x2ECC71)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="track", description="Track an order or receipt ID in real time.")
+    @app_commands.describe(query="Order ID or Receipt ID (e.g. ORD-123456 or RD-123456)")
+    async def slash_track(self, interaction: discord.Interaction, query: str):
+        clean = query.strip()
+        order = await db.get_shop_order(clean) or await db.get_order_by_receipt(clean)
+        if not order:
+            return await interaction.response.send_message(embed=error_embed("Not Found", f"No record found for `{clean}`."), ephemeral=True)
+        embed = standard_embed(
+            title=f"🔍 Order Tracking • {order['order_id']}",
+            description=f"• **Product:** `{order['product_name']}` (x{order['quantity']})\n• **Status:** `{order['status'].title()}`\n• **Amount:** `${order['total_usd']:.2f}`\n• **Receipt:** `{order['receipt_id']}`",
+            color=0x2ECC71 if order["status"] == "completed" else 0xFEE75C
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="receipt", description="Inspect verified receipt details for a transaction.")
+    @app_commands.describe(receipt_id="Receipt ID (e.g. RD-731158)")
+    async def slash_receipt(self, interaction: discord.Interaction, receipt_id: str):
+        order = await db.get_order_by_receipt(receipt_id.strip())
+        if not order:
+            return await interaction.response.send_message(embed=error_embed("Not Found", f"No receipt found matching `{receipt_id}`."), ephemeral=True)
+        embed = standard_embed(
+            title=f"🧾 Verified Receipt • {order['receipt_id']}",
+            description=f"• **Order ID:** `{order['order_id']}`\n• **Buyer:** <@{order['user_id']}>\n• **Product:** `{order['product_name']}`\n• **Total Paid:** `${order['total_usd']:.2f}`\n• **Status:** `{order['status'].title()}`",
+            color=0x2ECC71
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="coupon", description="Create or inspect store promo codes.")
+    @app_commands.describe(action="create or view", code="Coupon code", discount="Discount percentage")
+    @app_commands.choices(action=[
+        app_commands.Choice(name="create", value="create"),
+        app_commands.Choice(name="view", value="view")
+    ])
+    async def slash_coupon(self, interaction: discord.Interaction, action: str, code: str, discount: Optional[float] = 10.0):
+        if action == "create":
+            if not interaction.user.guild_permissions.administrator:
+                return await interaction.response.send_message(embed=error_embed("Unauthorized", "Admin only."), ephemeral=True)
+            cid = await db.create_coupon(interaction.guild_id, code, discount or 10.0)
+            await interaction.response.send_message(embed=success_embed("Coupon Created", f"Coupon **`{code.upper()}`** created for `{discount}%` off!"))
+        else:
+            c = await db.get_coupon(interaction.guild_id, code)
+            if not c:
+                return await interaction.response.send_message(embed=error_embed("Not Found", f"Coupon `{code}` not found."), ephemeral=True)
+            await interaction.response.send_message(embed=info_embed("Coupon Details", f"• **Code:** `{c['code']}`\n• **Discount:** `{c['discount_percent']}%`\n• **Uses:** `{c['uses_count']}/{c['max_uses']}`"))
+
+    @app_commands.command(name="redeem", description="Check or redeem a store coupon code.")
+    @app_commands.describe(code="Promo code to redeem")
+    async def slash_redeem(self, interaction: discord.Interaction, code: str):
+        c = await db.get_coupon(interaction.guild_id, code)
+        if not c:
+            return await interaction.response.send_message(embed=error_embed("Invalid Coupon", "Promo code not found."), ephemeral=True)
+        if c["uses_count"] >= c["max_uses"]:
+            return await interaction.response.send_message(embed=error_embed("Expired", "Coupon has reached maximum uses."), ephemeral=True)
+        await interaction.response.send_message(embed=success_embed("Coupon Active", f"🎉 Coupon **`{c['code']}`** is valid for **{c['discount_percent']}% OFF**!"))
+
+    @app_commands.command(name="staff", description="Staff order management and analytics dashboard.")
+    @app_commands.describe(action="Staff action", order_id="Order ID")
+    @app_commands.choices(action=[
+        app_commands.Choice(name="stats", value="stats"),
+        app_commands.Choice(name="claim", value="claim"),
+        app_commands.Choice(name="complete", value="complete")
+    ])
+    async def slash_staff(self, interaction: discord.Interaction, action: str, order_id: Optional[str] = None):
+        if not interaction.user.guild_permissions.manage_messages:
+            return await interaction.response.send_message(embed=error_embed("Unauthorized", "Staff only."), ephemeral=True)
+        if action == "stats":
+            stats = await db.get_shop_revenue_stats(interaction.guild_id)
+            cfg = await db.get_shop_config(interaction.guild_id)
+            desc = (
+                f"> **Total Revenue:** `${stats['total_revenue']:,.2f} USD`\n"
+                f"> **Monthly (30d):** `${stats['monthly_revenue']:,.2f} USD`\n"
+                f"> **Daily (24h):** `${stats['daily_revenue']:,.2f} USD`\n\n"
+                f"• **Completed Orders:** `{stats['completed_orders']}`\n"
+                f"• **Total Orders:** `{stats['total_orders']}`"
+            )
+            embed = standard_embed(title=f"📊 {cfg.get('shop_name', 'Shop')} • Revenue Stats", description=desc, color=0x2ECC71)
+            await interaction.response.send_message(embed=embed)
+        elif action == "claim" and order_id:
+            await db.claim_order(order_id, interaction.user.id)
+            await interaction.response.send_message(embed=success_embed("Claimed", f"Claimed Order `{order_id}`."))
+        elif action == "complete" and order_id:
+            completed = await db.complete_order(order_id, staff_id=interaction.user.id)
+            cfg = await db.get_shop_config(interaction.guild_id)
+            await log_deal_completed(interaction.guild, completed, completed_by=interaction.user, custom_branding=cfg.get("shop_name"))
+            await interaction.response.send_message(embed=success_embed("Completed", f"Completed Order `{order_id}`."))
+        else:
+            await interaction.response.send_message("Please provide an `order_id` for this action.", ephemeral=True)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(SlashCommands(bot))

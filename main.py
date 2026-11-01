@@ -63,6 +63,7 @@ async def get_prefix(bot, message):
 
 # Setup bot intents
 intents = discord.Intents.all()
+OWNER_IDS = get_config_owner_ids()
 
 class ZyathBot(commands.Bot):
     def __init__(self):
@@ -105,7 +106,13 @@ class ZyathBot(commands.Bot):
             "cogs.slash",
             "cogs.premium",
             "cogs.levels",
-            "cogs.autoresponder"
+            "cogs.autoresponder",
+            "cogs.ltc",
+            "cogs.feedback",
+            "cogs.legit",
+            "cogs.customer",
+            "cogs.purchase_panel",
+            "cogs.shop_commands"
         ]
 
         for ext in initial_extensions:

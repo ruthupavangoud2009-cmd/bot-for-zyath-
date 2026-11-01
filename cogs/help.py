@@ -73,21 +73,185 @@ MODULES = {
         ]
     },
     "shop": {
-        "title": "🛒 Storefront & Payment Management",
-        "description": "Product catalog with 1-click ticket order creation and payment gateways.",
+        "title": "🛒 Shop & Storefront",
+        "description": "Storefront catalog, interactive purchase panel, and shop settings.",
         "emoji": "🛒",
         "color": 0x2ECC71,
         "commands": [
-            ("`$shop [category]`", "Browse the server shop with dropdown ordering and quick links."),
-            ("`$shopadd <name> | <price> | [cat] | [desc]`", "Add a new product or service to the shop."),
-            ("`$shopremove <item_id>` / `$shopdel`", "Delete a product from the shop catalog by ID."),
-            ("`$shoplist`", "Admin inventory overview of all shop items and IDs."),
-            ("`$payment` / `$wallets` / `$gateways`", "Display accepted payment methods and verified wallet addresses."),
-            ("`$setpayment <name> | <addr> | [note]`", "Add a payment method (e.g. `$setpayment LTC | ltc1q... | Fast`)."),
-            ("`$delpayment [ID or Name]`", "Delete a payment method by ID (e.g. `$delpayment 1`) or Name (`$delpayment LTC`), or run without args for an interactive dropdown!"),
-            ("`$restock [#channel] [@everyone] <Item> | <Price> | [Details]`", "Broadcast restock alert with 1-click buy button."),
-            ("`$tos` / `$terms`", "View shop Terms of Service, warranty, and replacement policy."),
-            ("`$settos <text>`", "Set custom shop Terms of Service.")
+            ("`$shop [category]` / `/shop`", "Browse the server shop with dropdown ordering and quick links."),
+            ("`$shoppanel` / `/shop panel`", "Deploy the customizable purchase panel matching reference."),
+            ("`$setshopname <Name>`", "Configure official store branding name (e.g. Jack's Shop)."),
+            ("`$tos` / `$terms` / `/tos`", "View shop Terms of Service, warranty, and refund policy."),
+            ("`$settos <text>`", "Set custom shop Terms of Service and warranty."),
+            ("`$restock [#channel] [@everyone] <Item> | <Price> | [Details]`", "Broadcast restock alert with 1-click buy button.")
+        ]
+    },
+    "products": {
+        "title": "📦 Product Management",
+        "description": "Create, edit, inspect, and remove shop catalog products.",
+        "emoji": "📦",
+        "color": 0x2ECC71,
+        "commands": [
+            ("`$product list` / `/product list`", "List all products available in the shop catalog."),
+            ("`$product info <Name/ID>` / `/product info`", "View detailed specifications and price for a product."),
+            ("`$product add <Name> | <Price> | [Cat] | [Desc]`", "Add a new product to the shop inventory."),
+            ("`$product remove <ID>` / `$shopdel`", "Remove a product from the shop catalog by ID."),
+            ("`$product stock [name]` / `/product stock`", "Check live digital stock counts across products."),
+            ("`$shopadd <Name> | <Price> | [Cat] | [Desc]`", "Classic command to add an item to the storefront."),
+            ("`$shoplist`", "Admin overview of all shop items and IDs.")
+        ]
+    },
+    "purchases": {
+        "title": "🛍️ Purchases & Shopping Cart",
+        "description": "Instant purchases, product variations, and shopping cart management.",
+        "emoji": "🛍️",
+        "color": 0x2ECC71,
+        "commands": [
+            ("`$buy [product]` / `/buy`", "Initiate purchase flow for a product."),
+            ("`$cart` / `/cart`", "View items currently in your shopping cart."),
+            ("`$cart add <item_id> [qty]`", "Add products to your cart before checkout."),
+            ("`$cart remove <item_id>`", "Remove an item from your shopping cart."),
+            ("`$cart clear`", "Empty your shopping cart.")
+        ]
+    },
+    "orders": {
+        "title": "📋 Orders & Tracking",
+        "description": "Order lookup, real-time tracking, receipts, and order lifecycle management.",
+        "emoji": "📋",
+        "color": 0x2ECC71,
+        "commands": [
+            ("`$order view <order_id>` / `/order view`", "Inspect order status, blockchain payment, and receipts."),
+            ("`$order history [@user]` / `/order history`", "View previous purchases and receipts for a customer."),
+            ("`$track <order_or_receipt_id>` / `/track`", "Track the live status of an order or receipt ID in real time."),
+            ("`$receipt <receipt_id>` / `/receipt`", "View verified cryptographic receipt certificate for a trade."),
+            ("`$order claim <order_id>`", "Staff: claim a pending purchase ticket."),
+            ("`$order complete <order_id>`", "Staff: mark an order fulfilled and trigger deal completion log."),
+            ("`$order cancel <order_id>`", "Cancel a pending purchase ticket."),
+            ("`$order refund <order_id>`", "Admin: record an official order refund.")
+        ]
+    },
+    "payments": {
+        "title": "💳 Payments & Gateways",
+        "description": "Payment gateway management and automated Litecoin blockchain invoicing.",
+        "emoji": "💳",
+        "color": 0x2ECC71,
+        "commands": [
+            ("`$payment` / `$wallets` / `/payment`", "Display accepted payment methods and verified wallet addresses."),
+            ("`$setpayment <Name> | <Address> | [Note]`", "Add or update an official payment gateway."),
+            ("`$delpayment [ID or Name]`", "Delete a payment gateway by ID, Name, or interactive dropdown."),
+            ("`$setshopltc <address>`", "Configure shop receiving Litecoin address for automated invoices.")
+        ]
+    },
+    "ltc": {
+        "title": "🪙 Litecoin (LTC) Wallet Tracking",
+        "description": "Taka-style live blockchain wallet tracking, balance inspection, and real-time prices.",
+        "emoji": "🪙",
+        "color": 0x345C9C,
+        "commands": [
+            ("`$ltc link <address>` / `/ltc link`", "Link your public Litecoin wallet (supports legacy, segwit, bech32)."),
+            ("`$ltc balance [@user]` / `/ltc balance`", "Check the actual blockchain balance of your linked wallet."),
+            ("`$ltc price` / `/ltc price`", "View live LTC/USD price updated across public exchanges."),
+            ("`$ltc portfolio` / `/ltc portfolio`", "Display your balance and live estimated USD valuation."),
+            ("`$ltc transactions` / `/ltc transactions`", "Show recent incoming and outgoing blockchain transactions."),
+            ("`$ltc unlink` / `/ltc unlink`", "Disconnect your linked wallet from your profile."),
+            ("`$ltc address` / `/ltc address`", "Display your or another member's linked LTC address."),
+            ("`$ltc check <address>` / `/ltc check`", "Audit any public Litecoin address directly on the blockchain."),
+            ("`$ltc status <txid>` / `/ltc status`", "Inspect confirmation count and block status of any LTC transaction.")
+        ]
+    },
+    "purchase_tickets": {
+        "title": "🎫 Purchase Tickets",
+        "description": "Private customer purchase channels, invoice generation, and ticket controls.",
+        "emoji": "🎫",
+        "color": 0x5865F2,
+        "commands": [
+            ("`$ticket close` / `/ticket close`", "Close the current active purchase ticket channel."),
+            ("`$ticket transcript` / `/ticket transcript`", "Generate and save a complete HTML and text transcript."),
+            ("`$ticket add @user`", "Add a member or co-buyer to the ticket."),
+            ("`$ticket remove @user`", "Remove a member from the ticket channel."),
+            ("`$ticket claim`", "Claim ticket as assigned staff handler."),
+            ("`$shopsupport [details]`", "Open a private support ticket for order assistance.")
+        ]
+    },
+    "feedback": {
+        "title": "⭐ Customer Feedback & Reviews",
+        "description": "Verified customer feedback system with 5-star ratings and testimonials.",
+        "emoji": "⭐",
+        "color": 0xFEE75C,
+        "commands": [
+            ("`$feedback review <order_id>` / `/feedback review`", "Submit a 5-star rating and written review for a completed order."),
+            ("`$feedback stats` / `/feedback stats`", "View shop customer satisfaction metrics and total review counts."),
+            ("`$feedback user [@user]` / `/feedback user`", "Inspect all reviews written by a specific customer."),
+            ("`$feedback delete <review_id>`", "Staff only: delete a fraudulent review."),
+            ("`$setfeedbackchannel #channel`", "Configure the official channel where customer feedback is posted.")
+        ]
+    },
+    "legit": {
+        "title": "✨ Legit Counter & Vouch System",
+        "description": "Interactive trust panel with 1-click vouch button and CheckT ledger.",
+        "emoji": "✨",
+        "color": 0x57F287,
+        "commands": [
+            ("`$legit` / `/legit`", "View the current store legitimacy score and total verified vouches."),
+            ("`$legit panel [#channel]` / `/legit panel`", "Deploy the 'Is Jack's Shop Trusted?' panel with Legit & CheckT buttons."),
+            ("`$legit check` / `/legit check`", "Inspect the complete paginated ledger of users who vouched."),
+            ("`$legit remove @user`", "Staff only: remove a fraudulent vouch."),
+            ("`$legit reset`", "Admin only: reset all legit vouches."),
+            ("`$vouch @user [1-5 stars] <comment>`", "Submit a verified vouch for a community trader."),
+            ("`$vouches [@user]` / `$rep`", "View member vouches and reputation rating."),
+            ("`$vouchlb` / `$vlb`", "View the top vouched seller leaderboard.")
+        ]
+    },
+    "deal_logs": {
+        "title": "🤝 Deal Completed Logs",
+        "description": "Automated polished green receipts logged to the official deal channel.",
+        "emoji": "🤝",
+        "color": 0x2ECC71,
+        "commands": [
+            ("`$setdeallog #channel`", "Configure the official channel for green Deal Completed embeds."),
+            ("`$track <receipt_id>`", "Verify receipt authenticity and customer lifetime spend."),
+            ("`$mercy @buyer @seller <amount> <details>`", "Post an official Middleman deal completion receipt.")
+        ]
+    },
+    "customer": {
+        "title": "👤 Customer Management",
+        "description": "Customer CRM profiles, lifetime spending, loyalty tiers, and leaderboards.",
+        "emoji": "👤",
+        "color": 0x2ECC71,
+        "commands": [
+            ("`$customer profile [@user]` / `/customer profile`", "View customer CRM profile: spend, completed orders, loyalty tier."),
+            ("`$customer spend [@user]` / `/customer spend`", "View total verified lifetime spending for a customer."),
+            ("`$customer orders [@user]` / `/customer orders`", "View full purchase history for a customer."),
+            ("`$customer feedback [@user]` / `/customer feedback`", "View all customer reviews written by a user."),
+            ("`$customer leaderboard` / `$customerlb`", "View the top customer spending leaderboard.")
+        ]
+    },
+    "staff_tools": {
+        "title": "🛡️ Staff Order Processing",
+        "description": "Staff order dashboard, claiming, fulfillment, and digital delivery.",
+        "emoji": "🛡️",
+        "color": 0x5865F2,
+        "commands": [
+            ("`$shopstaff` / `/staff`", "View pending orders awaiting staff fulfillment."),
+            ("`$shopstaff claim <order_id>` / `/staff claim`", "Claim a pending order to handle delivery."),
+            ("`$shopstaff complete <order_id>` / `/staff complete`", "Complete an order and trigger deal logs."),
+            ("`$shopstaff deliver <order_id> <content>`", "Directly deliver digital credentials/accounts to customer."),
+            ("`$shopstaff stats` / `/staff stats`", "View store revenue, daily sales, and top selling products.")
+        ]
+    },
+    "admin_tools": {
+        "title": "⚙️ Shop Admin & Settings",
+        "description": "Store branding, discounts, promo codes, and configuration.",
+        "emoji": "⚙️",
+        "color": 0xED4245,
+        "commands": [
+            ("`$setshopname <Name>`", "Configure shop branding title (default: Jack's Shop)."),
+            ("`$setshopltc <address>`", "Set official shop Litecoin payment address."),
+            ("`$setdeallog #channel`", "Set the deal-log channel for completed receipts."),
+            ("`$setfeedbackchannel #channel`", "Set the customer feedback channel."),
+            ("`$coupon create <CODE> <percent>`", "Create a store discount promo code."),
+            ("`$redeem <CODE>` / `/redeem`", "Redeem a promo code for purchase discounts."),
+            ("`$settos <text>`", "Set shop Terms of Service.")
         ]
     },
     "ai": {
@@ -360,27 +524,31 @@ class HelpSelect(discord.ui.Select):
 
         options = [
             discord.SelectOption(label="Home", description="Return to main dashboard overview", emoji="🏠", value="home"),
-            discord.SelectOption(label="Giveaways", description="Persistent giveaways, live countdowns, reroll", emoji="🎁", value="giveaways"),
-            discord.SelectOption(label="GW Mini-Games", description="GTN, Scramble, Drop, Math, Rumble, Trivia", emoji="🎮", value="games"),
+            discord.SelectOption(label="Shop & Storefront", description="Store catalog, purchase panel, settings", emoji="🛒", value="shop"),
+            discord.SelectOption(label="Product Management", description="Add, remove, list, and check product stock", emoji="📦", value="products"),
+            discord.SelectOption(label="Purchases & Cart", description="Instant purchases and shopping cart", emoji="🛍️", value="purchases"),
+            discord.SelectOption(label="Orders & Tracking", description="Lookup, live tracking, and receipts", emoji="📋", value="orders"),
+            discord.SelectOption(label="Payment Gateways", description="Litecoin, PayPal, CashApp, and methods", emoji="💳", value="payments"),
+            discord.SelectOption(label="Litecoin (LTC) Wallet", description="Taka-style wallet tracking and balance", emoji="🪙", value="ltc"),
+            discord.SelectOption(label="Purchase Tickets", description="Private purchase tickets and controls", emoji="🎫", value="purchase_tickets"),
+            discord.SelectOption(label="Customer Feedback", description="5-star ratings, reviews, and testimonials", emoji="⭐", value="feedback"),
+            discord.SelectOption(label="Legit Counter", description="Legit vouch button and CheckT ledger", emoji="✨", value="legit"),
+            discord.SelectOption(label="Deal Completed Logs", description="Green deal completion receipt logs", emoji="🤝", value="deal_logs"),
+            discord.SelectOption(label="Customer CRM", description="Profiles, lifetime spend, leaderboard", emoji="👤", value="customer"),
+            discord.SelectOption(label="Staff Order Tools", description="Claim, complete, deliver, revenue stats", emoji="🛡️", value="staff_tools"),
+            discord.SelectOption(label="Shop Admin Controls", description="Branding, LTC config, coupons, TOS", emoji="⚙️", value="admin_tools"),
+            discord.SelectOption(label="AI Store & Restock", description="24/7 AI Manager, stock scanner, answers", emoji="🤖", value="ai"),
+            discord.SelectOption(label="Modular Tickets", description="Support categories, claims, transcripts", emoji="🎟️", value="tickets"),
+            discord.SelectOption(label="Giveaways Suite", description="Persistent giveaways and rerolls", emoji="🎁", value="giveaways"),
+            discord.SelectOption(label="Event Mini-Games", description="GTN, Scramble, Drop, Roulette, Blackjack", emoji="🎮", value="games"),
             discord.SelectOption(label="Economy & Casino", description="Balance, daily, jobs, rob, slots, baltop", emoji="💰", value="economy"),
-            discord.SelectOption(label="Premium & Perks", description="2x daily rewards, VIP limits, server badges", emoji="💎", value="premium"),
-            discord.SelectOption(label="Levels & Leaderboard", description="Rank cards, XP progress, top active chatters", emoji="📊", value="levels"),
-            discord.SelectOption(label="Auto-Responder", description="Custom triggers, automated replies, tags", emoji="🤖", value="autoresponder"),
+            discord.SelectOption(label="Moderation Suite", description="Kick, ban, mute, warn, purge, lock", emoji="🚨", value="moderation"),
             discord.SelectOption(label="Utility Suite", description="AFK, sticky, snipe, qrcode, calc, banners", emoji="🛠️", value="utility"),
-            discord.SelectOption(label="AutoMod Shield", description="Anti-invites, anti-spam, mentions, caps", emoji="🚨", value="automod"),
-            discord.SelectOption(label="Moderation", description="Ban, kick, mute, warn, lock, purge", emoji="🛡️", value="moderation"),
-            discord.SelectOption(label="Tickets", description="Panels, transcripts, claim, invoices", emoji="🎫", value="tickets"),
-            discord.SelectOption(label="Vouches & Leaderboard", description="Reputation logger, top sellers, stats", emoji="⭐", value="vouches"),
-            discord.SelectOption(label="Shop & Storefront", description="Store catalog, crypto payments, TOS", emoji="🛒", value="shop"),
-            discord.SelectOption(label="AI Store & Restock", description="AI Manager, live stock, bulk restocks", emoji="🤖", value="ai"),
-            discord.SelectOption(label="Middleman & Trades", description="Live MM trade receipts and $mercy", emoji="🤝", value="trades"),
             discord.SelectOption(label="Welcomer", description="Welcome embeds, autoroles, leave logs", emoji="👋", value="welcomer"),
-            discord.SelectOption(label="Fun & Utilities", description="$say, $spam, multi-ping, 8ball, tools", emoji="🎉", value="fun"),
-            discord.SelectOption(label="Management & Staff", description="Bot staff, avatar/banner, no-prefix, stats", emoji="👑", value="owner"),
             discord.SelectOption(label="Slash Commands", description="Top Discord application slash commands", emoji="⚡", value="slash")
         ]
         super().__init__(
-            placeholder="🏠 Home",
+            placeholder="🏠 Home • Select Category",
             min_values=1,
             max_values=1,
             options=options
@@ -400,7 +568,8 @@ class HelpSelect(discord.ui.Select):
                     "> Built for our community — keeping your server safe, active, and effortlessly connected.\n\n"
                     f"• **Latency:** `{latency}ms`\n"
                     f"• **Prefix:** `{self.prefix}` | **Slash:** `/`\n"
-                    f"• **Available Commands:** `{total_cmds}`"
+                    f"• **Available Commands:** `{total_cmds}`\n\n"
+                    "Select any category from the dropdown menu below to view full command references!"
                 ),
                 color=0x2B2D31
             )
@@ -409,7 +578,7 @@ class HelpSelect(discord.ui.Select):
 
         module = MODULES.get(choice)
         if not module:
-            return await interaction.response.send_message("Module not found.", ephemeral=True)
+            return await interaction.response.send_message("Category not found.", ephemeral=True)
 
         desc = f"> {module['description']}\n\n"
         for cmd, cmd_desc in module["commands"]:
@@ -444,23 +613,41 @@ class Help(commands.Cog):
         self.bot = bot
 
     @commands.command(name="help", aliases=["h"], help="Display the clean interactive help desk.")
-    async def help_cmd(self, ctx: commands.Context, module_name: str = None):
+    async def help_cmd(self, ctx: commands.Context, *, search_query: str = None):
         prefix = ctx.prefix or "$"
 
-        if module_name:
-            clean_name = module_name.lower().strip()
+        if search_query:
+            clean = search_query.lower().strip()
+            # 1. Exact or partial match on category key
             for key, mod in MODULES.items():
-                if clean_name in key or key in clean_name:
+                if clean == key or clean in key or key in clean:
                     desc = f"> {mod['description']}\n\n"
                     for cmd, cmd_desc in mod["commands"]:
                         desc += f"• **{cmd}**\n  └ *{cmd_desc}*\n"
-                    embed = standard_embed(
-                        title=mod["title"],
-                        description=desc,
-                        color=mod["color"]
-                    )
-                    embed.set_footer(text=f"Requested by {ctx.author.display_name}")
+                    embed = standard_embed(title=mod["title"], description=desc, color=mod["color"])
+                    embed.set_footer(text=f"Category Help • Requested by {ctx.author.display_name}")
                     return await ctx.send(embed=embed)
+
+            # 2. Search commands across all modules
+            matches = []
+            for key, mod in MODULES.items():
+                for cmd, cmd_desc in mod["commands"]:
+                    if clean in cmd.lower() or clean in cmd_desc.lower():
+                        matches.append((cmd, cmd_desc, mod["title"]))
+
+            if matches:
+                desc = f"> Found **{len(matches)}** matching commands for `{search_query}`:\n\n"
+                for cmd, cmd_desc, mod_title in matches[:12]:
+                    desc += f"• **{cmd}** [{mod_title.split()[0]}]\n  └ *{cmd_desc}*\n"
+                embed = standard_embed(
+                    title=f"🔍 Command Search • \"{search_query}\"",
+                    description=desc,
+                    color=0x5865F2
+                )
+                embed.set_footer(text=f"Requested by {ctx.author.display_name}")
+                return await ctx.send(embed=embed)
+
+            return await ctx.send(embed=error_embed("No Matches", f"No command or category found matching `{search_query}`.\nRun `$help` to browse all categories."))
 
         latency = round(self.bot.latency * 1000)
         total_cmds = len(self.bot.commands) + len(self.bot.tree.get_commands())
@@ -472,7 +659,8 @@ class Help(commands.Cog):
                 "> Built for our community — keeping your server safe, active, and effortlessly connected.\n\n"
                 f"• **Latency:** `{latency}ms`\n"
                 f"• **Prefix:** `{prefix}` | **Slash:** `/`\n"
-                f"• **Available Commands:** `{total_cmds}`"
+                f"• **Available Commands:** `{total_cmds}`\n\n"
+                "Select a category below or search with `$help <command>`!"
             ),
             color=0x2B2D31
         )
