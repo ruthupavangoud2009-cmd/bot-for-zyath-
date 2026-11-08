@@ -163,7 +163,7 @@ class AIManager(commands.Cog):
         )
         if ctx.guild.icon:
             embed.set_thumbnail(url=ctx.guild.icon.url)
-        embed.set_footer(text=f"Zyath AI Inventory Management • {ctx.guild.name}")
+        embed.set_footer(text=f"Kyoka AI Inventory Management • {ctx.guild.name}")
         await ctx.send(embed=embed)
 
     @commands.command(name="stock", aliases=["inventory"], help="View real-time stock levels of all products in the store.")
@@ -180,7 +180,7 @@ class AIManager(commands.Cog):
         embed = standard_embed(
             title=f"📊 {ctx.guild.name} • Live Stock Inventory",
             description=(
-                f"> Real-time stock audit monitored by **Zyath AI Assistant**\n"
+                f"> Real-time stock audit monitored by **Kyoka AI Assistant**\n"
                 f"> Verified products: `{len(items)}` | Direct 1-click orders available in `$shop`\n"
             ),
             color=0x2B2D31
@@ -208,7 +208,7 @@ class AIManager(commands.Cog):
                     inline=False
                 )
 
-        embed.set_footer(text="Live Inventory • Powered by Zyath AI Assistant")
+        embed.set_footer(text="Live Inventory • Powered by Kyoka AI Assistant")
         await ctx.send(embed=embed)
 
     @commands.command(name="clearstock", help="Purge all stock for a specific product. E.g. $clearstock Nitro 1 Year")
@@ -233,11 +233,11 @@ class AIManager(commands.Cog):
                 seller_offline=False
             )
             embed = standard_embed(
-                title="🤖 Zyath Intelligence • Automated Response",
+                title="🤖 Kyoka Intelligence • Automated Response",
                 description=f"> **Query:** *\"{question}\"*\n\n{reply}",
                 color=0x2B2D31
             )
-            embed.set_footer(text=f"Requested by {ctx.author.display_name} • Zyath Neural Engine")
+            embed.set_footer(text=f"Requested by {ctx.author.display_name} • Kyoka Neural Engine")
             await ctx.send(embed=embed)
 
     @commands.command(name="aimanager", aliases=["aitoggle"], help="Toggle the automated AI assistant in tickets on or off. E.g. $aimanager on")
@@ -269,7 +269,7 @@ class AIManager(commands.Cog):
         prompt_str = f"```{cfg['custom_prompt']}```" if cfg.get("custom_prompt") else "*Default Professional Shop Persona*"
 
         embed = standard_embed(
-            title="⚙️ Zyath AI Store Manager Telemetry",
+            title="⚙️ Kyoka AI Store Manager Telemetry",
             description=(
                 f"> **Autonomous Storefront Assistant**\n"
                 f"> 24/7 intelligent ticket responder & inventory scanner.\n"
@@ -291,7 +291,7 @@ class AIManager(commands.Cog):
             ),
             inline=False
         )
-        embed.set_footer(text=f"Zyath Assistant • Server: {ctx.guild.name}")
+        embed.set_footer(text=f"Kyoka Assistant • Server: {ctx.guild.name}")
         await ctx.send(embed=embed)
 
     @commands.command(name="aisetprompt", help="Set custom instructions or store policies for the AI. E.g. $aisetprompt Delivery takes 5 mins. Crypto only.")

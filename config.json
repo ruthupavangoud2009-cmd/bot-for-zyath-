@@ -1,9 +1,8 @@
 {
   "prefix": "$",
-  "bot_name": "Zyath Bot",
-  "support_server": "https://discord.gg/zyath",
+  "bot_name": "Kyoka Shop",
+  "support_server": "https://discord.gg/kyoka",
   "owner_ids": [
-    "1521774957065928734",
     "1505515188991033409"
   ],
   "database_url": "postgresql://postgres.tqhpmocfqeclmybceryt:ilovmycarandmom@aws-0-us-east-1.pooler.supabase.com:5432/postgres",
@@ -13,15 +12,12 @@
   "warning_color": 16705372,
   "info_color": 5793266,
   "allowed_spam_users": [
-    "1521774957065928734",
     "1505515188991033409"
   ],
   "bot_staff": {
-    "1521774957065928734": "Staff",
     "1505515188991033409": "Staff"
   },
   "staff_ids": [
-    "1521774957065928734",
     "1505515188991033409"
   ],
   "no_prefix_users": [],

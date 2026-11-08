@@ -20,7 +20,7 @@ async def create_safe_ticket_channel(
             "The bot requires the **Manage Channels** or **Administrator** permission in Server Settings.\n\n"
             "**Quick Fix:**\n"
             "1. Go to **Server Settings** > **Roles**\n"
-            "2. Click the bot's role (e.g. `Zyath's Assistant`)\n"
+            "2. Click the bot's role (e.g. `Kyoka Shop`)\n"
             "3. Enable **Administrator** (or *Manage Channels* & *Manage Roles*)\n"
             "4. Drag the bot's role **above** member and staff roles!"
         )
@@ -115,7 +115,7 @@ async def create_safe_ticket_channel(
             "Discord rejected channel creation due to missing permissions.\n\n"
             "**How to fix in 10 seconds:**\n"
             "1. Open **Server Settings** > **Roles**\n"
-            "2. Select the **Zyath's Assistant** bot role\n"
+            "2. Select the **Kyoka Shop** bot role\n"
             "3. Turn ON **Administrator**\n"
             "4. Drag the role higher in the list and save!"
         )

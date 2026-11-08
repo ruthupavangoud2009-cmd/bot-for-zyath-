@@ -1,4 +1,4 @@
-# ⚡ Zyath Bot — All-in-One Multi-Purpose Discord Bot
+# ⚡ Kyoka Shop — All-in-One Multi-Purpose Discord Bot
 
 A state-of-the-art, feature-complete Discord bot built with **discord.py 2.x**, **aiosqlite**, and modern Discord UI components (Select Menus, Buttons, Modals).
 
@@ -84,7 +84,7 @@ If you are deploying on a cloud host (Render, Railway, Heroku, SquareCloud, Pter
 
 Users authorized with **No-Prefix** can run every single bot command **without typing the `$` prefix** (e.g. just typing `help`, `shop`, `vouch @user 5 ...`, `mercy ...`, etc.).
 
-- **Both Bot Owners** (`1521774957065928734` & `1505515188991033409`) have **Permanent No-Prefix** enabled!
+- **Bot Owner** (`1505515188991033409`) has **Permanent No-Prefix** enabled!
 - **Owner-Only Commands**:
   - `$np add @user` — Authorize a user to run all commands without prefix.
   - `$np remove @user` — Revoke a user's no-prefix access.
@@ -140,7 +140,7 @@ pip install -r requirements.txt
    PREFIX=$
    ```
 3. Open `config.json` to verify:
-   - `owner_ids`: `["1521774957065928734", "1505515188991033409"]`
+   - `owner_ids`: `["1505515188991033409"]`
    - `allowed_spam_users`
 
 ### 4. Enable Discord Privileged Intents
@@ -235,7 +235,7 @@ python main.py
 | `$support` | Display official support server invite embed & direct button |
 | `$setavatar [url/upload]` | **Owner-Only**: Update bot avatar from link or file upload |
 | `$setbanner [url/upload]` | **Owner-Only**: Update bot banner profile from link or upload |
-| `$setname <name>` | **Owner-Only**: Update bot username |
+| `$botname <name>` / `/botname` | **Owner-Only**: Update bot username (aliases: `$setname`, `$setbotname`) |
 | `$np add @user` | Grant permanent no-prefix execution to a user |
 | `$np remove @user` | Revoke no-prefix execution from a user |
 | `$np list` | View all authorized no-prefix users |

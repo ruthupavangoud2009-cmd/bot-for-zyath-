@@ -8,7 +8,14 @@ import asyncpg
 from typing import Optional, List, Dict, Tuple, Any
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.json")
-SQLITE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "zyath_bot.db")
+OLD_SQLITE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "zyath_bot.db")
+SQLITE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "kyoka_bot.db")
+if not os.path.exists(SQLITE_PATH) and os.path.exists(OLD_SQLITE_PATH):
+    try:
+        import shutil
+        shutil.copyfile(OLD_SQLITE_PATH, SQLITE_PATH)
+    except Exception:
+        pass
 
 def get_database_url() -> Optional[str]:
     url = os.getenv("DATABASE_URL")
@@ -779,23 +786,42 @@ class Database:
     async def load_staff_cache(self):
         """Loads authorized bot staff from Postgres, SQLite, and config.json with full synchronization."""
         loaded_staff: Dict[int, str] = {}
+        BANNED_IDS = {1521774957065928734}
         try:
             if self.is_postgres and self.pool:
                 async with self.pool.acquire() as conn:
+                    for bid in BANNED_IDS:
+                        try:
+                            await conn.execute("DELETE FROM bot_staff WHERE user_id = $1", bid)
+                            await conn.execute("DELETE FROM allowed_spam_users WHERE user_id = $1", bid)
+                            await conn.execute("DELETE FROM no_prefix_users WHERE user_id = $1", bid)
+                        except Exception:
+                            pass
                     rows = await conn.fetch("SELECT user_id, role FROM bot_staff")
                     for r in rows:
-                        loaded_staff[int(r["user_id"])] = str(r["role"] or "Staff")
+                        uid = int(r["user_id"])
+                        if uid not in BANNED_IDS:
+                            loaded_staff[uid] = str(r["role"] or "Staff")
         except Exception as e:
             print(f"[CACHE] Error loading staff cache from Postgres: {e}")
 
         try:
             async with aiosqlite.connect(self.sqlite_path) as db:
+                for bid in BANNED_IDS:
+                    try:
+                        await db.execute("DELETE FROM bot_staff WHERE user_id = ?", (bid,))
+                        await db.execute("DELETE FROM allowed_spam_users WHERE user_id = ?", (bid,))
+                        await db.execute("DELETE FROM no_prefix_users WHERE user_id = ?", (bid,))
+                    except Exception:
+                        pass
+                await db.commit()
                 cursor = await db.execute("SELECT user_id, role FROM bot_staff")
                 rows = await cursor.fetchall()
                 for r in rows:
                     uid = int(r[0])
-                    if uid not in loaded_staff:
-                        loaded_staff[uid] = str(r[1] or "Staff")
+                    if uid not in BANNED_IDS:
+                        if uid not in loaded_staff:
+                            loaded_staff[uid] = str(r[1] or "Staff")
         except Exception as e:
             print(f"[CACHE] Error loading staff cache from SQLite: {e}")
 
@@ -805,14 +831,15 @@ class Database:
             for uid_str, role in cfg_staff.items():
                 if uid_str.isdigit():
                     uid = int(uid_str)
-                    if uid not in loaded_staff:
-                        loaded_staff[uid] = str(role or "Staff")
+                    if uid not in BANNED_IDS:
+                        if uid not in loaded_staff:
+                            loaded_staff[uid] = str(role or "Staff")
             # Sync merged staff back to config.json
-            save_bot_staff({str(k): v for k, v in loaded_staff.items()})
+            save_bot_staff({str(k): v for k, v in loaded_staff.items() if int(k) not in BANNED_IDS})
         except Exception as e:
             print(f"[CACHE] Error syncing staff cache with config.json: {e}")
 
-        self._staff_cache = loaded_staff
+        self._staff_cache = {k: v for k, v in loaded_staff.items() if k not in BANNED_IDS}
 
         # Sync back to SQLite to guarantee offline permanence
         try:

@@ -67,7 +67,7 @@ class Welcomer(commands.Cog):
             role = member.guild.get_role(autorole_id)
             if role and member.guild.me.guild_permissions.manage_roles:
                 try:
-                    await member.add_roles(role, reason="Zyath Welcomer: Autorole")
+                    await member.add_roles(role, reason="Kyoka Welcomer: Autorole")
                 except Exception:
                     pass
 
@@ -164,7 +164,7 @@ class Welcomer(commands.Cog):
         embed.add_field(name="👥 Member Count", value=f"**#{ctx.guild.member_count:,}**", inline=True)
         created_ago = discord.utils.format_dt(ctx.author.created_at, style="R")
         embed.add_field(name="📅 Account Age", value=created_ago, inline=True)
-        embed.set_footer(text="Zyath Bot • Dynamic Welcome Preview")
+        embed.set_footer(text="Kyoka Shop • Dynamic Welcome Preview")
 
         try:
             welcome_file = await generate_welcome_card(ctx.author)

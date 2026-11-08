@@ -425,7 +425,7 @@ class Economy(commands.Cog):
         balance_str = "♾️ Infinite" if has_inf else f"`{final_wallet:,}` coins"
 
         embed = standard_embed(
-            title="🎰 Zyath Casino Slots 🎰",
+            title="🎰 Kyoka Casino Slots 🎰",
             description=(
                 f"```\n"
                 f"┌───────────┐\n"

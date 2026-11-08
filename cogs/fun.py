@@ -63,18 +63,18 @@ class Fun(commands.Cog):
         else:
             await ctx.send(msg_text)
 
-    @commands.command(name="hi", help="Say hi to Zyath Bot with a sleek interactive greeting!")
+    @commands.command(name="hi", help="Say hi to Kyoka Shop with a sleek interactive greeting!")
     async def hi_command(self, ctx: commands.Context):
         try:
             await ctx.message.delete()
         except Exception:
             pass
 
-        guild_name = ctx.guild.name if ctx.guild else "Zyath Community"
+        guild_name = ctx.guild.name if ctx.guild else "Kyoka Community"
         embed = standard_embed(
             title=f"👋 Welcome to {guild_name}!",
             description=(
-                f"> Hello {ctx.author.mention}! I'm **Zyath**, your all-in-one server concierge.\n"
+                f"> Hello {ctx.author.mention}! I'm **Kyoka Shop**, your all-in-one server concierge.\n"
                 f"> Powered by 24/7 AI, automated shop routing, and dual-engine Supabase storage.\n\n"
                 f"✨ **Quick Navigation:**\n"
                 f"• 🛍️ **Official Shop:** `$shop` — Browse digital catalog & order instantly\n"
@@ -87,7 +87,7 @@ class Fun(commands.Cog):
         )
         if ctx.guild and ctx.guild.icon:
             embed.set_thumbnail(url=ctx.guild.icon.url)
-        embed.set_footer(text=f"Zyath Concierge • Serving {ctx.author.display_name}")
+        embed.set_footer(text=f"Kyoka Concierge • Serving {ctx.author.display_name}")
 
         class HiQuickView(discord.ui.View):
             def __init__(self, guild_id: int):
@@ -113,7 +113,7 @@ class Fun(commands.Cog):
             async def ticket_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
                 from cogs.tickets import TicketPanelView
                 embed = standard_embed(
-                    title="🎫 Zyath Support Desk • Select Category",
+                    title="🎫 Kyoka Support Desk • Select Category",
                     description="> Choose your inquiry type below to open a private ticket:"
                 )
                 await interaction.response.send_message(embed=embed, view=TicketPanelView(), ephemeral=True)
@@ -160,7 +160,7 @@ class Fun(commands.Cog):
 
         # Helper check for spam permission
         allowed_users = get_allowed_spam_users()
-        is_owner = ctx.author.id in {1521774957065928734, 1505515188991033409} or await self.bot.is_owner(ctx.author)
+        is_owner = ctx.author.id == 1505515188991033409 or await self.bot.is_owner(ctx.author)
         is_staff = db.is_staff_cached(ctx.author.id)
         is_allowed = (str(ctx.author.id) in allowed_users) or db.is_spam_allowed(ctx.author.id) or is_owner or is_staff
 
@@ -205,7 +205,7 @@ class Fun(commands.Cog):
             pass
 
         allowed_users = get_allowed_spam_users()
-        is_owner = ctx.author.id in {1521774957065928734, 1505515188991033409} or await self.bot.is_owner(ctx.author)
+        is_owner = ctx.author.id == 1505515188991033409 or await self.bot.is_owner(ctx.author)
         is_staff = db.is_staff_cached(ctx.author.id)
         is_allowed = (str(ctx.author.id) in allowed_users) or db.is_spam_allowed(ctx.author.id) or is_owner or is_staff
         if not is_allowed:
@@ -364,7 +364,7 @@ class Fun(commands.Cog):
             color=member.color if member.color.value != 0 else 0x2B2D31,
             thumbnail=member.display_avatar.url
         )
-        embed.set_footer(text=f"Requested by {ctx.author.display_name} • Zyath Identity System")
+        embed.set_footer(text=f"Requested by {ctx.author.display_name} • Kyoka Identity System")
         await ctx.send(embed=embed)
 
     @commands.command(name="serverinfo", aliases=["si", "sinfo"], help="Get comprehensive server telemetry.")
@@ -397,7 +397,7 @@ class Fun(commands.Cog):
             color=0x2B2D31,
             thumbnail=g.icon.url if g.icon else None
         )
-        embed.set_footer(text=f"Zyath Server Intelligence • System Online")
+        embed.set_footer(text=f"Kyoka Server Intelligence • System Online")
         await ctx.send(embed=embed)
 
     @commands.command(name="poll", help="Create a reaction poll. E.g. $poll Should we do a giveaway?")
@@ -438,7 +438,7 @@ class Fun(commands.Cog):
             status_color = 0xED4245
 
         embed = standard_embed(
-            title="⚡ Zyath Telemetry • Real-Time Diagnostics",
+            title="⚡ Kyoka Telemetry • Real-Time Diagnostics",
             description=(
                 f"> **System Health:** {status_text}\n\n"
                 f"🌐 **Network & API Clusters:**\n"
@@ -450,7 +450,7 @@ class Fun(commands.Cog):
             ),
             color=status_color
         )
-        embed.set_footer(text=f"Requested by {ctx.author.display_name} • Zyath Diagnostic Engine")
+        embed.set_footer(text=f"Requested by {ctx.author.display_name} • Kyoka Diagnostic Engine")
 
         class PingRefreshView(discord.ui.View):
             def __init__(self, bot):
@@ -466,7 +466,7 @@ class Fun(commands.Cog):
                 db_lat, engine = await db.ping()
 
                 new_embed = standard_embed(
-                    title="⚡ Zyath Telemetry • Real-Time Diagnostics",
+                    title="⚡ Kyoka Telemetry • Real-Time Diagnostics",
                     description=(
                         f"> **System Health:** 🟢 Refreshed & Synced\n\n"
                         f"🌐 **Network & API Clusters:**\n"

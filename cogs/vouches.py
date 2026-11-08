@@ -85,7 +85,7 @@ class Vouches(commands.Cog):
             color=0xFEE75C,
             thumbnail=member.display_avatar.url
         )
-        embed.set_footer(text=f"Vouch #{vouch_id} • Zyath High-Trust Cryptographic Ledger")
+        embed.set_footer(text=f"Vouch #{vouch_id} • Kyoka High-Trust Cryptographic Ledger")
 
         settings = await db.get_guild_settings(ctx.guild.id)
         vouch_channel_id = settings.get("vouch_channel_id")
@@ -151,7 +151,7 @@ class Vouches(commands.Cog):
             thumbnail=member.display_avatar.url,
             color=0xFEE75C
         )
-        embed.set_footer(text=f"Requested by {ctx.author.display_name} • Zyath Verified Trust")
+        embed.set_footer(text=f"Requested by {ctx.author.display_name} • Kyoka Verified Trust")
         await ctx.send(embed=embed)
 
     @commands.command(name="vouchleaderboard", aliases=["vouchlb", "vlb"], help="View the ranked top vouched sellers in the server.")

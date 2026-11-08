@@ -28,7 +28,7 @@ class SlashCommands(commands.Cog):
     async def slash_help(self, interaction: discord.Interaction):
         latency = round(self.bot.latency * 1000)
         total_cmds = len(self.bot.commands) + len(self.bot.tree.get_commands())
-        bot_name = self.bot.user.name if self.bot.user else "Zyath"
+        bot_name = self.bot.user.name if self.bot.user else "Kyoka Shop"
 
         embed = standard_embed(
             title=f"Hey, I'm {bot_name}",
@@ -108,7 +108,7 @@ class SlashCommands(commands.Cog):
         target = channel or interaction.channel
         categories = await db.get_ticket_categories(interaction.guild_id)
         stats = await db.get_ticket_stats(interaction.guild_id)
-        bot_name = self.bot.user.name if self.bot.user else "Zyath"
+        bot_name = self.bot.user.name if self.bot.user else "Kyoka Shop"
 
         cat_bullets = []
         for cat in categories:
@@ -129,7 +129,7 @@ class SlashCommands(commands.Cog):
         )
         if interaction.guild.icon:
             embed.set_thumbnail(url=interaction.guild.icon.url)
-        embed.set_footer(text=f"Zyath Modular Desk • {interaction.guild.name}")
+        embed.set_footer(text=f"Kyoka Modular Desk • {interaction.guild.name}")
         bot_id = self.bot.user.id if self.bot.user else None
         await target.send(embed=embed, view=TicketPanelView(categories, bot_user_id=bot_id))
         await interaction.response.send_message(embed=success_embed("Deployed", f"Modular panel sent to {target.mention}!"), ephemeral=True)
@@ -375,7 +375,7 @@ class SlashCommands(commands.Cog):
     async def slash_support(self, interaction: discord.Interaction):
         from utils.config_manager import get_support_server
         support_url = get_support_server()
-        bot_name = self.bot.user.name if self.bot.user else "Zyath Bot"
+        bot_name = self.bot.user.name if self.bot.user else "Kyoka Shop"
 
         embed = standard_embed(
             title=f"💬 {bot_name} Official Support Server",
@@ -398,12 +398,49 @@ class SlashCommands(commands.Cog):
 
         await interaction.response.send_message(embed=embed, view=view)
 
-    # 22. /setsupport
+    # 22. /botname (Owner only)
+    @app_commands.command(name="botname", description="Change the bot username (Bot Owner only).")
+    @app_commands.describe(new_name="New username for the bot (2-32 chars)")
+    async def slash_botname(self, interaction: discord.Interaction, new_name: str):
+        from utils.config_manager import check_is_owner, set_config_value
+        if not await check_is_owner(self.bot, interaction.user):
+            return await interaction.response.send_message(
+                embed=error_embed("Access Denied", "⛔ This command is restricted to the bot owner only."),
+                ephemeral=True
+            )
+        clean_name = new_name.strip()
+        if len(clean_name) < 2 or len(clean_name) > 32:
+            return await interaction.response.send_message(
+                embed=error_embed("Invalid Name", "Bot username must be between 2 and 32 characters."),
+                ephemeral=True
+            )
+        try:
+            await self.bot.user.edit(username=clean_name)
+            set_config_value("bot_name", clean_name)
+            await interaction.response.send_message(
+                embed=success_embed("Bot Name Updated", f"✅ Bot username successfully changed to **{clean_name}**!")
+            )
+        except discord.HTTPException as e:
+            await interaction.response.send_message(
+                embed=error_embed("Discord API Error", f"Failed updating name: {e.text} *(Discord limits username changes to twice per hour)*"),
+                ephemeral=True
+            )
+        except Exception as e:
+            await interaction.response.send_message(
+                embed=error_embed("Error", str(e)),
+                ephemeral=True
+            )
+
+    # 23. /setsupport
     @app_commands.command(name="setsupport", description="Change the official bot support server link dynamically.")
-    @app_commands.describe(url="New Discord invite link (e.g. https://discord.gg/zyath)")
-    @app_commands.default_permissions(administrator=True)
+    @app_commands.describe(url="New Discord invite link (e.g. https://discord.gg/kyoka)")
     async def slash_setsupport(self, interaction: discord.Interaction, url: str):
-        from utils.config_manager import set_support_server
+        from utils.config_manager import check_is_owner, set_support_server
+        if not await check_is_owner(self.bot, interaction.user):
+            return await interaction.response.send_message(
+                embed=error_embed("Access Denied", "⛔ This command is restricted to the bot owner only."),
+                ephemeral=True
+            )
         clean_url = url.strip("<>").strip()
         if not (clean_url.startswith("http://") or clean_url.startswith("https://") or "discord.gg/" in clean_url):
             return await interaction.response.send_message(embed=error_embed("Invalid Link", "Please provide a valid Discord invite link."), ephemeral=True)
@@ -806,7 +843,7 @@ class SlashCommands(commands.Cog):
             return f"🌟 **Active** (Expires <t:{ts}:R>)"
 
         embed = standard_embed(
-            title="💎 Zyath Elite Premium Status",
+            title="💎 Kyoka Elite Premium Status",
             description=(
                 f"• **This Server:** {format_badge(guild_prem_data)}\n"
                 f"• **Your Account:** {format_badge(user_prem_data)}\n\n"

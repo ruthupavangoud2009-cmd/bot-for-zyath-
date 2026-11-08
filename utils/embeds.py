@@ -41,7 +41,7 @@ def standard_embed(
     if footer_text:
         embed.set_footer(text=footer_text, icon_url=footer_icon)
     else:
-        embed.set_footer(text="Zyath System • All-in-One Discord Suite")
+        embed.set_footer(text="Kyoka Shop • All-in-One Discord Suite")
     if thumbnail:
         embed.set_thumbnail(url=thumbnail)
     if image:

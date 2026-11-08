@@ -219,7 +219,7 @@ class Giveaway(commands.Cog):
                 ),
                 color=0xED4245
             )
-            embed.set_footer(text=f"Ended • Zyath Giveaway Engine")
+            embed.set_footer(text=f"Ended • Kyoka Giveaway Engine")
             try:
                 await message.edit(embed=embed, view=disabled_view)
             except Exception:
@@ -241,7 +241,7 @@ class Giveaway(commands.Cog):
             ),
             color=0x57F287
         )
-        embed.set_footer(text=f"Winners drawn! • Zyath Giveaway Engine")
+        embed.set_footer(text=f"Winners drawn! • Kyoka Giveaway Engine")
 
         try:
             await message.edit(embed=embed, view=disabled_view)
@@ -347,7 +347,7 @@ class Giveaway(commands.Cog):
             ),
             color=0x5865F2
         )
-        embed.set_footer(text=f"Zyath Ultimate Giveaway • Ends")
+        embed.set_footer(text=f"Kyoka Ultimate Giveaway • Ends")
         embed.timestamp = discord.utils.utcnow() + discord.utils.get_as_snowflake(None) if False else None
 
         view = GiveawayJoinView(initial_count=0)

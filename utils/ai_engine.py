@@ -45,7 +45,7 @@ async def generate_ai_shop_response(
     # 2. If Gemini API key is configured, query Gemini
     if GEMINI_API_KEY:
         try:
-            prompt = f"""You are Zyath AI Assistant, the professional automated store & ticket manager for this Discord shop.
+            prompt = f"""You are Kyoka AI Assistant, the professional automated store & ticket manager for this Discord shop.
 Your goal is to assist customers politely, accurately, and concisely.
 
 STORE CONTEXT:
@@ -160,7 +160,7 @@ INSTRUCTIONS:
             f"{offline_prefix}🛡️ **Shop Terms & Warranty Policy:**\n"
             f"> {tos_text}\n\n"
             f"⭐ **Reputation:** Check our verified vouch record with `$vouches` or `$vouchlb`!\n"
-            f"🔒 All transactions are protected and tracked by Zyath Assistant."
+            f"🔒 All transactions are protected and tracked by Kyoka Assistant."
         )
 
     # Intent E: How to buy / Order
@@ -178,7 +178,7 @@ INSTRUCTIONS:
     if any(w in q for w in ["hi", "hello", "hey", "sup", "anyone", "seller", "here", "help"]):
         return (
             f"{offline_prefix}👋 **Hey {user_name}! Welcome to the support desk.**\n\n"
-            f"I'm the **Zyath AI Shop Assistant**! Here's what I can help you with:\n"
+            f"I'm the **Kyoka AI Shop Assistant**! Here's what I can help you with:\n"
             f"• 📦 **Check Stock**: Ask me `Do you have Nitro in stock?`\n"
             f"• 💰 **Check Prices**: Ask me `How much is Nitro?`\n"
             f"• 💳 **Payment Methods**: Ask me `What payment methods do you take?`\n"
@@ -188,7 +188,7 @@ INSTRUCTIONS:
 
     # Default smart assistant response
     return (
-        f"{offline_prefix}🤖 **Zyath AI Assistant Response:**\n"
+        f"{offline_prefix}🤖 **Kyoka AI Assistant Response:**\n"
         f"Thank you for reaching out, {user_name}! I am monitoring this ticket while staff is handling orders.\n\n"
         f"• **Shop Catalog**: Browse items with `$shop`\n"
         f"• **Payment Gateways**: Check addresses with `$payment`\n"

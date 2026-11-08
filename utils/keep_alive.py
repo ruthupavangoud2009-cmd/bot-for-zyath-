@@ -18,7 +18,7 @@ async def home(request):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zyath Bot • 24/7 Online</title>
+    <title>Kyoka Shop • 24/7 Online</title>
     <style>
         body {{
             background: linear-gradient(135deg, #0b0e14 0%, #1a1f2c 100%);
@@ -84,7 +84,7 @@ async def home(request):
 <body>
     <div class="card">
         <div class="badge"><span class="dot"></span>24/7 ONLINE & HEALTHY</div>
-        <h1>Zyath Multi-Purpose Bot</h1>
+        <h1>Kyoka Shop Bot</h1>
         <p>Bot is actively connected to Discord Gateway and serving all shop, moderation, tickets, and game commands.</p>
         <div class="stats">
             <strong>System Uptime:</strong> {uptime_str} &bull; Port Binding OK
@@ -96,7 +96,7 @@ async def home(request):
 
 @routes.get('/health')
 async def health(request):
-    return web.json_response({"status": "healthy", "service": "Zyath Bot", "timestamp": str(datetime.utcnow())})
+    return web.json_response({"status": "healthy", "service": "Kyoka Shop", "timestamp": str(datetime.utcnow())})
 
 @routes.get('/ping')
 async def ping(request):
@@ -321,7 +321,7 @@ async def dashboard_page(request):
         </table>
 
         <div class="footer">
-            &copy; {shop_title} &bull; Powered by Zyath Bot Discord Store Architecture &bull; All Rights Reserved.
+            &copy; {shop_title} &bull; Powered by Kyoka Shop Discord Store Architecture &bull; All Rights Reserved.
         </div>
     </div>
 </body>

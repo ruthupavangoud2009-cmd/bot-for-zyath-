@@ -84,7 +84,7 @@ class Owner(commands.Cog):
         embed = standard_embed(title=title, description=desc, color=0x5865F2)
         if ctx.guild.icon:
             embed.set_thumbnail(url=ctx.guild.icon.url)
-        embed.set_footer(text=f"Sent by {ctx.author.display_name} • Zyath Management")
+        embed.set_footer(text=f"Sent by {ctx.author.display_name} • Kyoka Management")
 
         await channel.send(embed=embed)
         await ctx.send(embed=success_embed("Announcement Sent", f"Broadcast posted in {channel.mention}."))
@@ -121,11 +121,11 @@ class Owner(commands.Cog):
         shop_items = await db.get_shop_items(ctx.guild.id)
 
         embed = standard_embed(
-            title="⚙️ Zyath Bot • Master Diagnostics",
+            title="⚙️ Kyoka Shop • Master Diagnostics",
             description="System performance and database diagnostics.",
             color=0x3447003
         )
-        embed.add_field(name="👑 Bot Owners", value="<@1521774957065928734>\n<@1505515188991033409>", inline=True)
+        embed.add_field(name="👑 Bot Owner", value="<@1505515188991033409>", inline=True)
         embed.add_field(name="⏱️ Uptime", value=uptime_str, inline=True)
         embed.add_field(name="📶 WebSocket Latency", value=f"{round(self.bot.latency * 1000)}ms", inline=True)
         embed.add_field(name="💾 RAM Usage", value=f"{ram_mb} MB", inline=True)
@@ -184,12 +184,13 @@ class Owner(commands.Cog):
     @is_bot_staff()
     async def np_list(self, ctx: commands.Context):
         users = await db.get_all_no_prefix_users()
-        desc = "**Default Owners (Permanent NP):**\n• <@1521774957065928734>\n• <@1505515188991033409>\n\n**Authorized Database Users:**\n"
+        desc = "**Bot Owner (Permanent NP):**\n• <@1505515188991033409>\n\n**Authorized Database Users:**\n"
         if not users:
             desc += "*No additional users authorized in database.*"
         else:
             for u in users:
-                desc += f"• <@{u['user_id']}> (`{u['user_id']}`) — added by <@{u['added_by']}>\n"
+                if u['user_id'] != 1521774957065928734:
+                    desc += f"• <@{u['user_id']}> (`{u['user_id']}`) — added by <@{u['added_by']}>\n"
 
         embed = standard_embed(
             title="⚡ No-Prefix Whitelist",
@@ -243,15 +244,13 @@ class Owner(commands.Cog):
     @is_bot_staff()
     async def botstaff_list(self, ctx: commands.Context):
         staff = await db.get_all_bot_staff()
-        owners = get_owner_ids()
-        desc = "**Bot Owners (Root):**\n"
-        for oid in sorted(owners):
-            desc += f"• <@{oid}> (`{oid}`)\n"
+        desc = "**Bot Owner (Root):**\n• <@1505515188991033409> (`1505515188991033409`)\n"
         desc += "\n**Appointed Staff:**\n"
-        if not staff:
+        filtered_staff = [s for s in staff if s.get('user_id') != 1521774957065928734]
+        if not filtered_staff:
             desc += "*No additional staff appointed in database.*"
         else:
-            for s in staff:
+            for s in filtered_staff:
                 added_str = f" (added by <@{s['added_by']}>)" if s.get('added_by') else ""
                 desc += f"• <@{s['user_id']}> (`{s['user_id']}`) — **{s['role']}**{added_str}\n"
 
@@ -270,51 +269,25 @@ class Owner(commands.Cog):
     async def owner_group(self, ctx: commands.Context):
         embed = info_embed(
             "👑 Bot Owner Management",
-            "• `$owner add <@user|id>` - Add a permanent bot owner (saved to config & DB).\n"
-            "• `$owner remove <@user|id>` - Remove a bot owner.\n"
-            "• `$owner list` - List all root bot owners."
+            "• `$owner list` - List the root bot owner.\n\n"
+            "*Bot owner is hardcoded to `1505515188991033409`.*"
         )
         await ctx.send(embed=embed)
 
-    @owner_group.command(name="add", help="Add a root bot owner. E.g. $owner add @user")
+    @owner_group.command(name="add", help="Add a root bot owner. (Disabled - hardcoded owner)")
     @is_bot_owner()
     async def owner_add(self, ctx: commands.Context, target: str):
-        uid = self._resolve_id(target)
-        if not uid:
-            return await ctx.send(embed=error_embed("Invalid User", "Please mention a member or provide a Discord User ID."))
+        await ctx.send(embed=error_embed("Action Denied", "⛔ Bot owner is strictly hardcoded to <@1505515188991033409> and cannot be modified."))
 
-        add_owner_to_config(uid)
-        await db.add_bot_staff(uid, "Owner", ctx.author.id)
-        await ctx.send(embed=success_embed(
-            "Bot Owner Added",
-            f"👑 Added <@{uid}> (`{uid}`) as a permanent **Bot Owner**!\n*Saved permanently in config.json and database.*"
-        ))
-
-    @owner_group.command(name="remove", aliases=["del", "rem"], help="Remove a root bot owner.")
+    @owner_group.command(name="remove", aliases=["del", "rem"], help="Remove a root bot owner. (Disabled - hardcoded owner)")
     @is_bot_owner()
     async def owner_remove(self, ctx: commands.Context, target: str):
-        uid = self._resolve_id(target)
-        if not uid:
-            return await ctx.send(embed=error_embed("Invalid User", "Please mention a member or provide a Discord User ID."))
-
-        owners = get_owner_ids()
-        if len(owners) <= 1 and uid in owners:
-            return await ctx.send(embed=error_embed("Action Denied", "Cannot remove the only remaining bot owner."))
-
-        removed = remove_owner_from_config(uid)
-        await db.remove_bot_staff(uid)
-        if removed:
-            await ctx.send(embed=success_embed("Owner Removed", f"Successfully removed <@{uid}> (`{uid}`) from Bot Owners."))
-        else:
-            await ctx.send(embed=error_embed("Not Found", f"User <@{uid}> was not listed as a Bot Owner."))
+        await ctx.send(embed=error_embed("Action Denied", "⛔ The hardcoded bot owner (<@1505515188991033409>) cannot be removed."))
 
     @owner_group.command(name="list", help="List all bot owners.")
     @is_bot_owner()
     async def owner_list(self, ctx: commands.Context):
-        owners = get_owner_ids()
-        desc = "**Root Bot Owners:**\n"
-        for oid in sorted(owners):
-            desc += f"• <@{oid}> (`{oid}`)\n"
+        desc = "**Root Bot Owner:**\n• <@1505515188991033409> (`1505515188991033409`)\n"
         embed = standard_embed(
             title="👑 Official Bot Owners Directory",
             description=desc,
@@ -468,7 +441,7 @@ class Owner(commands.Cog):
         except Exception as e:
             await msg.edit(embed=error_embed("Unexpected Error", str(e)))
 
-    @commands.command(name="setname", aliases=["setbotname", "botname"], help="Change the bot username. E.g. $setname Zyath Bot")
+    @commands.command(name="botname", aliases=["setname", "setbotname"], help="Change the bot username (Owner only). E.g. $botname Kyoka Shop")
     @is_bot_owner()
     async def set_name(self, ctx: commands.Context, *, new_name: str):
         """Owner-only command to change bot username."""
@@ -486,14 +459,14 @@ class Owner(commands.Cog):
         except Exception as e:
             await ctx.send(embed=error_embed("Error", str(e)))
 
-    @commands.command(name="setsupport", aliases=["setsupportserver", "supportserverset"], help="Change the official bot support server link dynamically. E.g. $setsupport https://discord.gg/zyath")
+    @commands.command(name="setsupport", aliases=["setsupportserver", "supportserverset"], help="Change the official bot support server link dynamically. E.g. $setsupport https://discord.gg/kyoka")
     @is_bot_owner()
     async def set_support_server_cmd(self, ctx: commands.Context, url: str):
         """Owner command to change the bot support server link."""
         from utils.config_manager import set_support_server
         clean_url = url.strip("<>").strip()
         if not (clean_url.startswith("http://") or clean_url.startswith("https://") or "discord.gg/" in clean_url):
-            return await ctx.send(embed=error_embed("Invalid Link", "Please provide a valid Discord invite link (e.g. `https://discord.gg/zyath`)."))
+            return await ctx.send(embed=error_embed("Invalid Link", "Please provide a valid Discord invite link (e.g. `https://discord.gg/kyoka`)."))
 
         if not clean_url.startswith(("http://", "https://")):
             clean_url = f"https://{clean_url}"
@@ -520,7 +493,7 @@ class Owner(commands.Cog):
         """Public command to view the support server invite and get help."""
         from utils.config_manager import get_support_server
         support_url = get_support_server()
-        bot_name = self.bot.user.name if self.bot.user else "Zyath Bot"
+        bot_name = self.bot.user.name if self.bot.user else "Kyoka Shop"
 
         embed = standard_embed(
             title=f"💬 {bot_name} Official Support Server",
@@ -533,7 +506,7 @@ class Owner(commands.Cog):
         )
         if self.bot.user and self.bot.user.avatar:
             embed.set_thumbnail(url=self.bot.user.avatar.url)
-        embed.set_footer(text=f"Requested by {ctx.author.display_name} • Zyath Management")
+        embed.set_footer(text=f"Requested by {ctx.author.display_name} • Kyoka Management")
 
         view = discord.ui.View()
         view.add_item(discord.ui.Button(label="Join Support Server", style=discord.ButtonStyle.link, url=support_url, emoji="💬"))

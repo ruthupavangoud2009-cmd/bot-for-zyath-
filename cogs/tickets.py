@@ -66,7 +66,7 @@ class CreateEmbedModal(discord.ui.Modal, title="Create Custom Embed"):
         if self.embed_footer.value.strip():
             embed.set_footer(text=self.embed_footer.value.strip())
         else:
-            embed.set_footer(text=f"Sent via Zyath Embed Creator • {interaction.guild.name}")
+            embed.set_footer(text=f"Sent via Kyoka Embed Creator • {interaction.guild.name}")
 
         channel = self.target_channel or interaction.channel
         await channel.send(embed=embed)
@@ -139,7 +139,7 @@ class CreateTicketModal(discord.ui.Modal):
         welcome_ticket_embed = standard_embed(
             title=f"{cat_emoji} {category_name} • #{ticket_channel.name}",
             description=(
-                f"> Welcome {user.mention}! Support staff and the Zyath AI Assistant have been notified.\n\n"
+                f"> Welcome {user.mention}! Support staff and the Kyoka AI Assistant have been notified.\n\n"
                 f"• **Ticket Creator:** {user.mention}\n"
                 f"• **Assigned Staff:** {staff_role.mention if staff_role else '*All Support Staff*'}\n"
                 f"• **Category:** `{category_name}`\n"
@@ -151,7 +151,7 @@ class CreateTicketModal(discord.ui.Modal):
             color=0x2B2D31,
             thumbnail=user.display_avatar.url
         )
-        welcome_ticket_embed.set_footer(text=f"Zyath Support Desk • Ticket ID: {ticket_channel.id}")
+        welcome_ticket_embed.set_footer(text=f"Kyoka Support Desk • Ticket ID: {ticket_channel.id}")
 
         await ticket_channel.send(content=mention_str, embed=welcome_ticket_embed, view=TicketControlsView())
 
@@ -209,7 +209,7 @@ class CreateInvoiceModal(discord.ui.Modal, title="Issue Order Invoice"):
             ),
             color=0x2ECC71
         )
-        embed.set_footer(text=f"Issued by {interaction.user.display_name} • Zyath Store")
+        embed.set_footer(text=f"Issued by {interaction.user.display_name} • Kyoka Shop")
         await interaction.channel.send(embed=embed)
         await interaction.response.send_message("Invoice sent successfully!", ephemeral=True)
 
@@ -414,9 +414,9 @@ class TicketPanelView(discord.ui.View):
             ))
 
         # Add link buttons matching Help module
-        client_id = bot_user_id or 1521774957065928734
+        client_id = bot_user_id or 1505515188991033409
         invite_url = f"https://discord.com/oauth2/authorize?client_id={client_id}&permissions=8&scope=bot%20applications.commands"
-        self.add_item(discord.ui.Button(label="Invite Zyath", style=discord.ButtonStyle.link, url=invite_url, emoji="🚀"))
+        self.add_item(discord.ui.Button(label="Invite Kyoka Shop", style=discord.ButtonStyle.link, url=invite_url, emoji="🚀"))
         from utils.config_manager import get_support_server
         self.add_item(discord.ui.Button(label="Support Server", style=discord.ButtonStyle.link, url=get_support_server(), emoji="💬"))
 
@@ -475,7 +475,7 @@ class Tickets(commands.Cog):
             ),
             color=0x2ECC71
         )
-        embed.set_footer(text=f"Issued by {ctx.author.display_name} • Zyath Store")
+        embed.set_footer(text=f"Issued by {ctx.author.display_name} • Kyoka Shop")
         await ctx.send(embed=embed)
 
     @commands.command(name="ticketpanel", aliases=["ticketsetup"], help="Deploy the dynamic modular ticket creation panel.")
@@ -484,7 +484,7 @@ class Tickets(commands.Cog):
         target = channel or ctx.channel
         categories = await db.get_ticket_categories(ctx.guild.id)
         stats = await db.get_ticket_stats(ctx.guild.id)
-        bot_name = self.bot.user.name if self.bot.user else "Zyath"
+        bot_name = self.bot.user.name if self.bot.user else "Kyoka Shop"
 
         cat_bullets = []
         for cat in categories:
@@ -505,7 +505,7 @@ class Tickets(commands.Cog):
         )
         if ctx.guild.icon:
             embed.set_thumbnail(url=ctx.guild.icon.url)
-        embed.set_footer(text=f"Zyath Modular Desk • {ctx.guild.name}")
+        embed.set_footer(text=f"Kyoka Modular Desk • {ctx.guild.name}")
 
         bot_id = self.bot.user.id if self.bot.user else None
         await target.send(embed=embed, view=TicketPanelView(categories, bot_user_id=bot_id))
@@ -661,7 +661,7 @@ class Tickets(commands.Cog):
             if stats["categories"]:
                 cat_lines = [f"• **{cat}**: `{cnt}` tickets" for cat, cnt in stats["categories"].items()]
                 embed.add_field(name="📌 Top Modules", value="\n".join(cat_lines), inline=False)
-            embed.set_footer(text=f"Zyath Ticket Analytics • Requested by {ctx.author.display_name}")
+            embed.set_footer(text=f"Kyoka Ticket Analytics • Requested by {ctx.author.display_name}")
             await ctx.send(embed=embed)
 
         elif action == "rename":

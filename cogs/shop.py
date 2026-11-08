@@ -233,7 +233,7 @@ class ShopQuickButtons(discord.ui.View):
                 value=f"```{m['address']}```{note_str}",
                 inline=False
             )
-        embed.set_footer(text="Zyath Financial Security • Verified Addresses")
+        embed.set_footer(text="Kyoka Financial Security • Verified Addresses")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @discord.ui.button(label="Terms of Service", style=discord.ButtonStyle.secondary, emoji="📜")
@@ -303,9 +303,9 @@ class ShopView(discord.ui.View):
                 value=f"```{m['address']}```{note_str}",
                 inline=False
             )
-        embed.set_footer(text="Zyath Financial Security • Verified Addresses")
+        embed.set_footer(text="Kyoka Financial Security • Verified Addresses")
         await interaction.response.send_message(embed=embed, ephemeral=True)
-        embed.set_footer(text="Zyath Financial Security • Verified Addresses")
+        embed.set_footer(text="Kyoka Financial Security • Verified Addresses")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @discord.ui.button(label="Terms of Service", style=discord.ButtonStyle.secondary, emoji="📜", row=1)
@@ -479,7 +479,7 @@ class Shop(commands.Cog):
                 value=f"```{m['address']}```{note_str}",
                 inline=False
             )
-        embed.set_footer(text="Zyath Financial Security • Verified Addresses")
+        embed.set_footer(text="Kyoka Financial Security • Verified Addresses")
 
         if ctx.author.guild_permissions.administrator:
             view = PaymentAdminControlsView(methods, ctx.guild.id)
@@ -496,8 +496,8 @@ class Shop(commands.Cog):
                 "**Usage:** `$setpayment <Method Name> | <Wallet/Details> | [Note]`\n\n"
                 "**Examples:**\n"
                 "• `$setpayment Litecoin (LTC) | ltc1q9... | 1 confirmation required`\n"
-                "• `$setpayment PayPal | billing@zyath.store | Friends & Family only`\n"
-                "• `$setpayment CashApp | $ZyathStore | Instant verification`\n\n"
+                "• `$setpayment PayPal | billing@kyoka.store | Friends & Family only`\n"
+                "• `$setpayment CashApp | $KyokaStore | Instant verification`\n\n"
                 "*Tip: You can also click the `➕ Add Payment Method` button on `$payment`!*"
             ))
 
@@ -703,7 +703,7 @@ class Shop(commands.Cog):
 
         if ctx.guild.icon:
             embed.set_thumbnail(url=ctx.guild.icon.url)
-        embed.set_footer(text=f"Zyath Official Store • Click the button below to buy instantly!")
+        embed.set_footer(text=f"Kyoka Official Store • Click the button below to buy instantly!")
 
         view = RestockBuyView(item_name)
         allowed = discord.AllowedMentions(everyone=True, roles=True, users=True)

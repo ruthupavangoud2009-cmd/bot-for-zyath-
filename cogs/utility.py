@@ -130,7 +130,7 @@ class Utility(commands.Cog):
     # ==========================================
     # 4. QR CODE GENERATOR
     # ==========================================
-    @commands.command(name="qrcode", aliases=["qr"], help="Generate a high-resolution QR code image. E.g. $qr https://discord.gg/zyath")
+    @commands.command(name="qrcode", aliases=["qr"], help="Generate a high-resolution QR code image. E.g. $qr https://discord.gg/kyoka")
     async def qrcode_cmd(self, ctx: commands.Context, *, text: str):
         clean_text = text.strip()
         encoded = urllib.parse.quote(clean_text)

@@ -64,7 +64,7 @@ async def process_minigame_win(guild_id: int, winner: discord.Member, prize: str
 
 # --- Word List for Scramble ---
 SCRAMBLE_WORDS = [
-    "NITRO", "DISCORD", "GIVEAWAY", "ZYATH", "VALORANT", "MINECRAFT", "ROBLOX",
+    "NITRO", "DISCORD", "GIVEAWAY", "KYOKA", "VALORANT", "MINECRAFT", "ROBLOX",
     "CYBERPUNK", "ETHEREUM", "BITCOIN", "REPUTATION", "MERCHANT", "CHAMPION",
     "COMMUNITY", "PLATINUM", "DIAMOND", "FORTNITE", "VOUCHES", "MIDDLEMAN",
     "TRANSACTION", "TICKETS", "SECURITY", "DEVELOPER", "PHANTOM", "LEGENDARY",

@@ -86,7 +86,7 @@ class Moderation(commands.Cog):
             color=0xED4245,
             thumbnail=member.display_avatar.url
         )
-        embed.set_footer(text=f"Zyath Security Engine • Case Audit Logged")
+        embed.set_footer(text=f"Kyoka Security Engine • Case Audit Logged")
         await ctx.send(embed=embed)
         await self.log_action(ctx.guild, embed)
 
@@ -133,7 +133,7 @@ class Moderation(commands.Cog):
             color=0xED4245,
             thumbnail=member.display_avatar.url
         )
-        embed.set_footer(text=f"Zyath Security Engine • Case Audit Logged")
+        embed.set_footer(text=f"Kyoka Security Engine • Case Audit Logged")
         await ctx.send(embed=embed)
         await self.log_action(ctx.guild, embed)
 
@@ -192,7 +192,7 @@ class Moderation(commands.Cog):
             color=0xFEE75C,
             thumbnail=member.display_avatar.url
         )
-        embed.set_footer(text=f"Zyath Security Engine • Case Audit Logged")
+        embed.set_footer(text=f"Kyoka Security Engine • Case Audit Logged")
         await ctx.send(embed=embed)
         await self.log_action(ctx.guild, embed)
 
@@ -272,7 +272,7 @@ class Moderation(commands.Cog):
             color=0xED4245,
             thumbnail=member.display_avatar.url
         )
-        embed.set_footer(text=f"Zyath Compliance & Moderation Records")
+        embed.set_footer(text=f"Kyoka Compliance & Moderation Records")
         await ctx.send(embed=embed)
 
     @commands.command(name="clearwarnings", aliases=["clearwarns"], help="Clear all warnings for a member.")

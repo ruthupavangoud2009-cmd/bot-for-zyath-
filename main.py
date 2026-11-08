@@ -32,16 +32,7 @@ def get_config_prefix():
 DEFAULT_PREFIX = get_config_prefix() or ENV_PREFIX or "$"
 
 def get_config_owner_ids():
-    ids = {1521774957065928734, 1505515188991033409}
-    if os.path.exists(CONFIG_PATH):
-        try:
-            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                for oid in data.get("owner_ids", []):
-                    ids.add(int(oid))
-        except Exception:
-            pass
-    return ids
+    return {1505515188991033409}
 
 from utils.config_manager import get_owner_ids
 
@@ -65,7 +56,7 @@ async def get_prefix(bot, message):
 intents = discord.Intents.all()
 OWNER_IDS = get_config_owner_ids()
 
-class ZyathBot(commands.Bot):
+class KyokaBot(commands.Bot):
     def __init__(self):
         super().__init__(
             command_prefix=get_prefix,
@@ -132,7 +123,7 @@ class ZyathBot(commands.Bot):
             print(f"{Fore.YELLOW}[SLASH COMMANDS]{Style.RESET_ALL} Note: Tree sync will complete once connected: {e}")
         banner = f"""
 {Fore.MAGENTA}====================================================
-{Fore.CYAN}       ⚡ ZYATH MULTI-PURPOSE DISCORD BOT ⚡
+{Fore.CYAN}       ⚡ KYOKA SHOP MULTI-PURPOSE DISCORD BOT ⚡
 {Fore.MAGENTA}====================================================
 {Fore.YELLOW}  Logged in as : {self.user} (ID: {self.user.id})
 {Fore.YELLOW}  Guilds Count : {len(self.guilds)}
@@ -165,7 +156,7 @@ class ZyathBot(commands.Bot):
     async def before_status_loop(self):
         await self.wait_until_ready()
 
-bot = ZyathBot()
+bot = KyokaBot()
 
 # --- Global Command Error Handling ---
 @bot.event

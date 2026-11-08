@@ -117,7 +117,7 @@ class MercyModal(discord.ui.Modal, title="Mercy • Log MM Transaction"):
             ),
             color=0xFEE75C
         )
-        embed.set_footer(text=f"Trade #{trade_id} • Zyath Certified Escrow Ledger")
+        embed.set_footer(text=f"Trade #{trade_id} • Kyoka Certified Escrow Ledger")
 
         view = TradeStatusView(trade_id=trade_id, mm_id=interaction.user.id)
         msg = await self.target_channel.send(content=f"{buyer_mention} {seller_mention}", embed=embed, view=view)
@@ -183,7 +183,7 @@ class Trades(commands.Cog):
             embed.add_field(name="💰 Value / Amount", value=f"`{amount}`", inline=True)
             embed.add_field(name="📊 Status", value="🟡 **In Progress**", inline=True)
             embed.add_field(name="📝 Deal Details", value=f"```{details}```", inline=False)
-            embed.set_footer(text=f"Trade ID: {trade_id} • Zyath Live MM Logger")
+            embed.set_footer(text=f"Trade ID: {trade_id} • Kyoka Live MM Logger")
 
             view = TradeStatusView(trade_id=trade_id, mm_id=ctx.author.id)
             msg = await target_channel.send(content=f"{buyer.mention} {seller.mention}", embed=embed, view=view)

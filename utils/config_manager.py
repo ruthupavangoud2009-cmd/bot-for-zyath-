@@ -4,7 +4,8 @@ from typing import Optional, Dict, Any
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.json")
 
-DEFAULT_SUPPORT_SERVER = "https://discord.gg/zyath"
+DEFAULT_SUPPORT_SERVER = "https://discord.gg/kyoka"
+HARDCODED_BOT_OWNER_ID = 1505515188991033409
 
 _cached_config: Optional[Dict[str, Any]] = None
 
@@ -32,6 +33,10 @@ def save_config(data: Dict[str, Any]) -> bool:
         print(f"[CONFIG] Error saving config.json: {e}")
         return False
 
+def get_bot_name() -> str:
+    cfg = load_config()
+    return cfg.get("bot_name") or "Kyoka Shop"
+
 def get_support_server() -> str:
     cfg = load_config()
     return cfg.get("support_server") or DEFAULT_SUPPORT_SERVER
@@ -51,31 +56,15 @@ def set_config_value(key: str, value: Any) -> bool:
     return save_config(cfg)
 
 def get_owner_ids() -> set[int]:
-    cfg = load_config()
-    raw = cfg.get("owner_ids", ["1521774957065928734", "1505515188991033409"])
-    try:
-        return set(int(x) for x in raw)
-    except Exception:
-        return {1521774957065928734, 1505515188991033409}
+    """Returns only the hardcoded bot owner ID (1505515188991033409)."""
+    return {HARDCODED_BOT_OWNER_ID}
 
 def add_owner_to_config(user_id: int) -> bool:
-    cfg = load_config()
-    owners = [str(x) for x in cfg.get("owner_ids", ["1521774957065928734", "1505515188991033409"])]
-    uid_str = str(user_id)
-    if uid_str not in owners:
-        owners.append(uid_str)
-        cfg["owner_ids"] = owners
-        return save_config(cfg)
-    return True
+    """Bot owner is hardcoded to 1505515188991033409 only."""
+    return False
 
 def remove_owner_from_config(user_id: int) -> bool:
-    cfg = load_config()
-    owners = [str(x) for x in cfg.get("owner_ids", [])]
-    uid_str = str(user_id)
-    if uid_str in owners:
-        owners.remove(uid_str)
-        cfg["owner_ids"] = owners
-        return save_config(cfg)
+    """Bot owner is hardcoded to 1505515188991033409 only."""
     return False
 
 def get_bot_staff() -> Dict[str, str]:
@@ -87,11 +76,15 @@ def get_bot_staff() -> Dict[str, str]:
 
 def save_bot_staff(staff_map: Dict[str, str]) -> bool:
     cfg = load_config()
-    cfg["bot_staff"] = staff_map
-    cfg["staff_ids"] = list(staff_map.keys())
+    # Filter out banned owner IDs
+    clean_map = {k: v for k, v in staff_map.items() if str(k) != "1521774957065928734"}
+    cfg["bot_staff"] = clean_map
+    cfg["staff_ids"] = list(clean_map.keys())
     return save_config(cfg)
 
 def add_staff_to_config(user_id: int, role: str) -> bool:
+    if user_id == 1521774957065928734:
+        return False
     staff = get_bot_staff()
     staff[str(user_id)] = (role or "Staff").strip()[:30]
     return save_bot_staff(staff)
@@ -109,14 +102,16 @@ def get_no_prefix_users() -> list[str]:
     raw = cfg.get("no_prefix_users", [])
     if not isinstance(raw, list):
         raw = []
-    return [str(x) for x in raw]
+    return [str(x) for x in raw if str(x) != "1521774957065928734"]
 
 def save_no_prefix_users(users: list[str]) -> bool:
     cfg = load_config()
-    cfg["no_prefix_users"] = list(dict.fromkeys(users))
+    cfg["no_prefix_users"] = [str(x) for x in list(dict.fromkeys(users)) if str(x) != "1521774957065928734"]
     return save_config(cfg)
 
 def add_no_prefix_to_config(user_id: int) -> bool:
+    if user_id == 1521774957065928734:
+        return False
     users = get_no_prefix_users()
     uid_str = str(user_id)
     if uid_str not in users:
@@ -133,15 +128,5 @@ def remove_no_prefix_from_config(user_id: int) -> bool:
     return False
 
 async def check_is_owner(bot, user) -> bool:
-    owner_ids = get_owner_ids()
     user_id = getattr(user, "id", None)
-    if user_id in owner_ids:
-        return True
-    try:
-        if bot and hasattr(bot, "is_owner") and await bot.is_owner(user):
-            return True
-    except Exception:
-        pass
-    return False
-
-
+    return user_id == HARDCODED_BOT_OWNER_ID

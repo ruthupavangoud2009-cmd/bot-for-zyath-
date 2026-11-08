@@ -66,7 +66,7 @@ class Premium(commands.Cog):
             return f"🌟 **Active** (Expires <t:{ts}:R>)"
 
         embed = standard_embed(
-            title="💎 Zyath Elite Premium Status",
+            title="💎 Kyoka Elite Premium Status",
             description=(
                 "> Unlock exclusive server perks, 2x economy rewards, priority queues, and custom branding.\n\n"
                 f"• **This Server:** {format_badge(guild_prem_data)}\n"

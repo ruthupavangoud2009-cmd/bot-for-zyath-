@@ -341,7 +341,7 @@ MODULES = {
         "color": 0xE91E63,
         "commands": [
             ("`$say <message>`", "Make the bot say something and automatically delete your message."),
-            ("`$hi`", "Say hi to Zyath Bot with an interactive response and quick buttons."),
+            ("`$hi`", "Say hi to Kyoka Shop with an interactive response and quick buttons."),
             ("`$sayembed <title> | <desc>`", "Make the bot speak in a styled embed and delete trigger message."),
             ("`$spam <count> @user [msg]`", "Restricted command: deletes trigger, ghost mentions user up to 100x and cleans up!"),
             ("`$cancelspam [all]` / `$stopspam`", "Cancel and stop active ghost spam immediately."),
@@ -560,7 +560,7 @@ class HelpSelect(discord.ui.Select):
         if choice == "home":
             latency = round(self.bot.latency * 1000)
             total_cmds = len(self.bot.commands) + len(self.bot.tree.get_commands())
-            bot_name = self.bot.user.name if self.bot.user else "Zyath"
+            bot_name = self.bot.user.name if self.bot.user else "Kyoka Shop"
 
             embed = standard_embed(
                 title=f"Hey, I'm {bot_name}",
@@ -598,12 +598,12 @@ class HelpView(discord.ui.View):
         self.add_item(HelpSelect(bot, author_name, prefix))
 
         # Add dynamic link buttons
-        invite_url = "https://discord.com/oauth2/authorize?client_id=1521774957065928734&permissions=8&scope=bot%20applications.commands"
+        invite_url = "https://discord.com/oauth2/authorize?client_id=1505515188991033409&permissions=8&scope=bot%20applications.commands"
         if bot.user:
             invite_url = f"https://discord.com/oauth2/authorize?client_id={bot.user.id}&permissions=8&scope=bot%20applications.commands"
 
         from utils.config_manager import get_support_server
-        self.add_item(discord.ui.Button(label="Invite Zyath", style=discord.ButtonStyle.link, url=invite_url, emoji="🚀"))
+        self.add_item(discord.ui.Button(label="Invite Kyoka Shop", style=discord.ButtonStyle.link, url=invite_url, emoji="🚀"))
         self.add_item(discord.ui.Button(label="Support Server", style=discord.ButtonStyle.link, url=get_support_server(), emoji="💬"))
 
 class Help(commands.Cog):
@@ -651,7 +651,7 @@ class Help(commands.Cog):
 
         latency = round(self.bot.latency * 1000)
         total_cmds = len(self.bot.commands) + len(self.bot.tree.get_commands())
-        bot_name = self.bot.user.name if self.bot.user else "Zyath"
+        bot_name = self.bot.user.name if self.bot.user else "Kyoka Shop"
 
         embed = standard_embed(
             title=f"Hey, I'm {bot_name}",
