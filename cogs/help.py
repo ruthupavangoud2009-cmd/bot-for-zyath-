@@ -80,7 +80,7 @@ MODULES = {
         "commands": [
             ("`$shop [category]` / `/shop`", "Browse the server shop with dropdown ordering and quick links."),
             ("`$shoppanel` / `/shop panel`", "Deploy the customizable purchase panel matching reference."),
-            ("`$setshopname <Name>`", "Configure official store branding name (e.g. Jack's Shop)."),
+            ("`$setshopname <Name>`", "Configure official store branding name (e.g. Kyoka Shop)."),
             ("`$tos` / `$terms` / `/tos`", "View shop Terms of Service, warranty, and refund policy."),
             ("`$settos <text>`", "Set custom shop Terms of Service and warranty."),
             ("`$restock [#channel] [@everyone] <Item> | <Price> | [Details]`", "Broadcast restock alert with 1-click buy button.")
@@ -193,7 +193,7 @@ MODULES = {
         "color": 0x57F287,
         "commands": [
             ("`$legit` / `/legit`", "View the current store legitimacy score and total verified vouches."),
-            ("`$legit panel [#channel]` / `/legit panel`", "Deploy the 'Is Jack's Shop Trusted?' panel with Legit & CheckT buttons."),
+            ("`$legit panel [#channel]` / `/legit panel`", "Deploy the 'Is Kyoka Shop Trusted?' panel with Legit & CheckT buttons."),
             ("`$legit check` / `/legit check`", "Inspect the complete paginated ledger of users who vouched."),
             ("`$legit remove @user`", "Staff only: remove a fraudulent vouch."),
             ("`$legit reset`", "Admin only: reset all legit vouches."),
@@ -245,7 +245,7 @@ MODULES = {
         "emoji": "⚙️",
         "color": 0xED4245,
         "commands": [
-            ("`$setshopname <Name>`", "Configure shop branding title (default: Jack's Shop)."),
+            ("`$setshopname <Name>`", "Configure shop branding title (default: Kyoka Shop)."),
             ("`$setshopltc <address>`", "Set official shop Litecoin payment address."),
             ("`$setdeallog #channel`", "Set the deal-log channel for completed receipts."),
             ("`$setfeedbackchannel #channel`", "Set the customer feedback channel."),

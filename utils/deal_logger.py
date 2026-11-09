@@ -19,7 +19,7 @@ async def log_deal_completed(
     # Prevent duplicate deal log if already completed
     # Fetch shop config
     cfg = await db.get_shop_config(guild.id)
-    shop_name = custom_branding or cfg.get("shop_name", "Jack's Shop")
+    shop_name = custom_branding or cfg.get("shop_name", "Kyoka Shop")
     deal_log_channel_id = cfg.get("deal_log_channel_id")
 
     # If deal_log_channel_id is not set, try default_channels in config or guild settings

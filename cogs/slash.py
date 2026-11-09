@@ -1008,7 +1008,7 @@ class SlashCommands(commands.Cog):
     @app_commands.describe(product="Product name or ID")
     async def slash_buy(self, interaction: discord.Interaction, product: Optional[str] = None):
         cfg = await db.get_shop_config(interaction.guild_id)
-        shop_title = cfg.get("shop_name", "Jack's Shop")
+        shop_title = cfg.get("shop_name", "Kyoka Shop")
         embed = success_embed(
             f"🛒 {shop_title} • Ready to Order",
             f"To purchase **{product or 'items'}**, open a private purchase ticket on our Purchase Panel!\n"

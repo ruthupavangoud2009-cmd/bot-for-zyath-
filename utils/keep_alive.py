@@ -114,7 +114,7 @@ async def api_shop_stats(request):
         cfg = await db.get_shop_config(gid)
         return web.json_response({
             "status": "success",
-            "shop_name": cfg.get("shop_name", "Jack's Shop"),
+            "shop_name": cfg.get("shop_name", "Kyoka Shop"),
             "revenue": stats,
             "feedback": feedback_stats,
             "legit_vouches": legit_count
@@ -159,7 +159,7 @@ async def dashboard_page(request):
     orders = await db.get_guild_orders(gid, limit=10)
     products = await db.get_shop_items(gid)
     counts = await db.get_stock_counts(gid)
-    shop_title = cfg.get("shop_name", "Jack's Shop")
+    shop_title = cfg.get("shop_name", "Kyoka Shop")
 
     orders_html = "".join([
         f"<tr><td><code>{o['order_id']}</code></td><td>{o['product_name']} (x{o['quantity']})</td><td>${o['total_usd']:.2f}</td><td><code>{o.get('total_ltc', 0.0):.6f} LTC</code></td><td><span class='badge-status {o['status']}'>{o['status'].title()}</span></td><td><code>{o['receipt_id']}</code></td></tr>"

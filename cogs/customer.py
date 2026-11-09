@@ -21,7 +21,7 @@ class Customer(commands.Cog):
     async def show_profile(self, ctx: commands.Context, member: discord.Member):
         profile = await db.get_customer_profile(ctx.guild.id, member.id)
         cfg = await db.get_shop_config(ctx.guild.id)
-        shop_title = cfg.get("shop_name", "Jack's Shop")
+        shop_title = cfg.get("shop_name", "Kyoka Shop")
 
         wallet_str = f"`{shorten_address(profile['ltc_address'])}`" if profile.get("ltc_address") else "*Not Linked*"
         stars_bar = "⭐" * int(round(profile["avg_review_rating"]))
@@ -127,7 +127,7 @@ class Customer(commands.Cog):
             desc += f"└ 💰 **${entry['total_spent']:.2f}** Lifetime Spend • `{entry['orders_count']}` Orders Completed\n\n"
 
         cfg = await db.get_shop_config(ctx.guild.id)
-        shop_title = cfg.get("shop_name", "Jack's Shop")
+        shop_title = cfg.get("shop_name", "Kyoka Shop")
         embed = standard_embed(
             title=f"🏆 {shop_title} • Top Customers",
             description=desc,

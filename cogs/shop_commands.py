@@ -372,7 +372,7 @@ class ShopCommands(commands.Cog):
         """View server sales and revenue statistics."""
         stats = await db.get_shop_revenue_stats(ctx.guild.id)
         cfg = await db.get_shop_config(ctx.guild.id)
-        shop_title = cfg.get("shop_name", "Jack's Shop")
+        shop_title = cfg.get("shop_name", "Kyoka Shop")
 
         top_p = "\n".join([f"• **{p[0]}:** `{p[1]}` sold" for p in stats["top_products"]]) if stats["top_products"] else "None"
         desc = (

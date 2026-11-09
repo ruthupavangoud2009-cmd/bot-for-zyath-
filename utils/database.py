@@ -318,7 +318,7 @@ CREATE TABLE IF NOT EXISTS shop_legit_vouches (
 
 CREATE TABLE IF NOT EXISTS shop_config (
     guild_id BIGINT PRIMARY KEY,
-    shop_name TEXT DEFAULT 'Jack''s Shop',
+    shop_name TEXT DEFAULT 'Kyoka Shop',
     ltc_address TEXT,
     deal_log_channel_id BIGINT,
     feedback_channel_id BIGINT,
@@ -646,7 +646,7 @@ CREATE TABLE IF NOT EXISTS shop_legit_vouches (
 
 CREATE TABLE IF NOT EXISTS shop_config (
     guild_id INTEGER PRIMARY KEY,
-    shop_name TEXT DEFAULT 'Jack''s Shop',
+    shop_name TEXT DEFAULT 'Kyoka Shop',
     ltc_address TEXT,
     deal_log_channel_id INTEGER,
     feedback_channel_id INTEGER,
@@ -2617,7 +2617,7 @@ class Database:
     async def get_shop_config(self, guild_id: int) -> Dict[str, Any]:
         default = {
             "guild_id": guild_id,
-            "shop_name": "Jack's Shop",
+            "shop_name": "Kyoka Shop",
             "ltc_address": None,
             "deal_log_channel_id": None,
             "feedback_channel_id": None,
@@ -2631,8 +2631,8 @@ class Database:
                 row = await conn.fetchrow("SELECT * FROM shop_config WHERE guild_id = $1", guild_id)
                 if row:
                     res = dict(row)
-                    if not res.get("shop_name"):
-                        res["shop_name"] = "Jack's Shop"
+                    if not res.get("shop_name") or res.get("shop_name") == "Jack's Shop":
+                        res["shop_name"] = "Kyoka Shop"
                     return res
                 return default
         else:
@@ -2642,8 +2642,8 @@ class Database:
                 row = await cursor.fetchone()
                 if row:
                     res = dict(row)
-                    if not res.get("shop_name"):
-                        res["shop_name"] = "Jack's Shop"
+                    if not res.get("shop_name") or res.get("shop_name") == "Jack's Shop":
+                        res["shop_name"] = "Kyoka Shop"
                     return res
                 return default
 

@@ -228,7 +228,7 @@ class PurchaseTicketControlView(discord.ui.View):
         invoice_embed.add_field(name="Invoice Expiration", value=f"⏳ Expires <t:{expire_time}:R>", inline=True)
         invoice_embed.add_field(name="Receipt Tracking", value=f"`{order['receipt_id']}`", inline=True)
         invoice_embed.set_image(url=qr_url)
-        invoice_embed.set_footer(text=f"{cfg.get('shop_name', 'Jack''s Shop')} • Confirmed payments auto-delivered via Blockchain")
+        invoice_embed.set_footer(text=f"{cfg.get('shop_name', 'Kyoka Shop')} • Confirmed payments auto-delivered via Blockchain")
 
         button.disabled = True
         await interaction.response.edit_message(embed=invoice_embed, view=self)
@@ -329,7 +329,7 @@ class PurchaseTicketControlView(discord.ui.View):
             guild=interaction.guild,
             order=completed_order,
             completed_by=None,
-            custom_branding=cfg.get("shop_name", "Jack's Shop")
+            custom_branding=cfg.get("shop_name", "Kyoka Shop")
         )
 
     @discord.ui.button(label="Claim Ticket", style=discord.ButtonStyle.secondary, emoji="🙋‍♂️", custom_id="pt_claim_btn", row=2)
@@ -400,7 +400,7 @@ class PurchaseTicketControlView(discord.ui.View):
         await interaction.response.send_message("Support staff has been alerted.", ephemeral=True)
 
 class PurchasePanelView(discord.ui.View):
-    def __init__(self, shop_name: str = "Jack's Shop"):
+    def __init__(self, shop_name: str = "Kyoka Shop"):
         super().__init__(timeout=None)
         self.shop_name = shop_name
 
@@ -419,7 +419,7 @@ class PurchasePanelView(discord.ui.View):
             )
 
         cfg = await db.get_shop_config(guild.id)
-        shop_title = cfg.get("shop_name", "Jack's Shop")
+        shop_title = cfg.get("shop_name", "Kyoka Shop")
         parent_cat_id = cfg.get("purchase_category_id")
         settings = await db.get_guild_settings(guild.id)
         if not parent_cat_id:
@@ -490,7 +490,7 @@ class PurchasePanel(commands.Cog):
         """Deploy the official customizable purchase panel matching reference screenshot."""
         target_chan = channel or ctx.channel
         cfg = await db.get_shop_config(ctx.guild.id)
-        shop_title = cfg.get("shop_name", "Jack's Shop")
+        shop_title = cfg.get("shop_name", "Kyoka Shop")
 
         embed = discord.Embed(
             title=f"🛒 {shop_title} — Purchase Panel",
@@ -510,7 +510,7 @@ class PurchasePanel(commands.Cog):
         if target_chan.id != ctx.channel.id:
             await ctx.send(embed=success_embed("Purchase Panel Deployed", f"Posted purchase panel to {target_chan.mention}!"))
 
-    @commands.command(name="setshopname", aliases=["shopname"], help="Customize your shop branding name. E.g. $setshopname Jack's Shop")
+    @commands.command(name="setshopname", aliases=["shopname"], help="Customize your shop branding name. E.g. $setshopname Kyoka Shop")
     @commands.has_permissions(administrator=True)
     async def set_shop_name_cmd(self, ctx: commands.Context, *, name: str):
         await db.set_shop_config(ctx.guild.id, shop_name=name.strip())

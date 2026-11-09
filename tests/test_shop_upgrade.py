@@ -25,12 +25,12 @@ async def run_tests():
 
     # Test Shop Config
     test_gid = 999123
-    await db.set_shop_config(test_gid, shop_name="Jack's Shop")
+    await db.set_shop_config(test_gid, shop_name="Kyoka Shop")
     cfg = await db.get_shop_config(test_gid)
-    assert cfg["shop_name"] == "Jack's Shop"
-    await db.set_shop_config(test_gid, shop_name="Jack's Premium Shop", ltc_address="ltc1qg66j4j37v7vgshnly0v44e053k8h05828v94q3")
+    assert cfg["shop_name"] == "Kyoka Shop"
+    await db.set_shop_config(test_gid, shop_name="Kyoka Premium Shop", ltc_address="ltc1qg66j4j37v7vgshnly0v44e053k8h05828v94q3")
     cfg2 = await db.get_shop_config(test_gid)
-    assert cfg2["shop_name"] == "Jack's Premium Shop"
+    assert cfg2["shop_name"] == "Kyoka Premium Shop"
     print("4. Shop config CRUD passed")
 
     # Test User LTC link/unlink
