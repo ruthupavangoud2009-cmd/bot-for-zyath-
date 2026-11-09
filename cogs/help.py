@@ -143,11 +143,17 @@ MODULES = {
         ]
     },
     "ltc": {
-        "title": "🪙 Litecoin (LTC) Wallet Tracking",
-        "description": "Taka-style live blockchain wallet tracking, balance inspection, and real-time prices.",
+        "title": "🪙 Litecoin (LTC) Payments & Wallet Tracking",
+        "description": "Send direct on-chain LTC payments, manage your wallet, and track blockchain transactions live.",
         "emoji": "🪙",
         "color": 0x345C9C,
         "commands": [
+            ("`$pay <address|@user> <amount> [ltc] [-y]` / `/pay`", "Send direct on-chain LTC payment or off-chain Discord transfer. (e.g. `$pay addy 1$ ltc` or `$pay addy 0.05 ltc`)."),
+            ("`$wallet` / `/wallet`", "Open Kyoka Wallet Dashboard: balances, deposit address, and payment key status."),
+            ("`$wallet setkey <wif>` / `/wallet setkey`", "Link your Litecoin private key (AES-256 encrypted) to pay directly from Discord."),
+            ("`$wallet deposit` / `/wallet deposit`", "Display your personal Litecoin deposit address and QR code."),
+            ("`$wallet withdraw <address> <amount>`", "Withdraw funds from your deposit balance to an external LTC address."),
+            ("`$wallet removekey`", "Purge your private signing key from the bot database."),
             ("`$ltc link <address>` / `/ltc link`", "Link your public Litecoin wallet (supports legacy, segwit, bech32)."),
             ("`$ltc balance [@user]` / `/ltc balance`", "Check the actual blockchain balance of your linked wallet."),
             ("`$ltc price` / `/ltc price`", "View live LTC/USD price updated across public exchanges."),
@@ -372,7 +378,7 @@ MODULES = {
             ("`$rob @user`", "Attempt to sneakily pickpocket coins from a member's wallet."),
             ("`$deposit <amount|all>` / `$dep`", "Safely store coins into your protected bank vault."),
             ("`$withdraw <amount|all>` / `$with`", "Withdraw coins from your bank vault into your wallet."),
-            ("`$pay @user <amount>`", "Transfer coins from your wallet directly to another member."),
+            ("`$paycoins @user <amount>` / `$give`", "Transfer virtual coins from your wallet directly to another member."),
             ("`$slots <bet>`", "Spin the 3-reel casino slot machine for up to 10x jackpot payout! (Supports `inf` for owners)"),
             ("`$gamble <bet>` / `$bet`", "Roll 1-100 against the house in high-stakes double-or-nothing! (Supports `inf` for owners)"),
             ("`$baltop` / `$rich`", "View the top 10 richest server millionaires leaderboard."),

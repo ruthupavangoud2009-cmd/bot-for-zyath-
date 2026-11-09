@@ -1,5 +1,9 @@
-# Environment
+# Environment & Secrets
 .env
+data/
+.wallet_secret
+*.salt
+*.key
 
 # Database
 *.db

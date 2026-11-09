@@ -299,6 +299,17 @@ CREATE TABLE IF NOT EXISTS user_ltc_wallets (
     linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS user_payment_accounts (
+    user_id BIGINT PRIMARY KEY,
+    encrypted_key TEXT,
+    p2pkh_address TEXT,
+    bech32_address TEXT,
+    deposit_address TEXT,
+    balance_ltc DOUBLE PRECISION DEFAULT 0.0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS customer_feedback (
     id SERIAL PRIMARY KEY,
     guild_id BIGINT NOT NULL,
@@ -625,6 +636,17 @@ CREATE TABLE IF NOT EXISTS user_ltc_wallets (
     user_id INTEGER PRIMARY KEY,
     ltc_address TEXT NOT NULL,
     linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS user_payment_accounts (
+    user_id INTEGER PRIMARY KEY,
+    encrypted_key TEXT,
+    p2pkh_address TEXT,
+    bech32_address TEXT,
+    deposit_address TEXT,
+    balance_ltc REAL DEFAULT 0.0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS customer_feedback (
@@ -2733,12 +2755,204 @@ class Database:
         if self.is_postgres and self.pool:
             async with self.pool.acquire() as conn:
                 val = await conn.fetchval("SELECT ltc_address FROM user_ltc_wallets WHERE user_id = $1", user_id)
+                if not val:
+                    val = await conn.fetchval("SELECT COALESCE(bech32_address, p2pkh_address) FROM user_payment_accounts WHERE user_id = $1", user_id)
                 return val
         else:
             async with aiosqlite.connect(self.sqlite_path) as db:
                 cursor = await db.execute("SELECT ltc_address FROM user_ltc_wallets WHERE user_id = ?", (user_id,))
                 row = await cursor.fetchone()
-                return row[0] if row else None
+                if row and row[0]:
+                    return row[0]
+                cursor2 = await db.execute("SELECT COALESCE(bech32_address, p2pkh_address) FROM user_payment_accounts WHERE user_id = ?", (user_id,))
+                row2 = await cursor2.fetchone()
+                return row2[0] if row2 else None
+
+    # ==========================================
+    # DIRECT USER PAYMENT WALLETS & ACCOUNTS
+    # ==========================================
+    async def set_user_wallet_account(self, user_id: int, wif: str) -> Dict[str, Any]:
+        """Import or link user's private key (WIF) securely, deriving addresses."""
+        from utils.ltc_sender import LitecoinKey, encrypt_wif
+        key = LitecoinKey.from_wif(wif)
+        enc_wif = encrypt_wif(key.wif)
+        p2pkh = key.p2pkh_address
+        bech32 = key.bech32_address
+
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO user_payment_accounts (user_id, encrypted_key, p2pkh_address, bech32_address, updated_at)
+                    VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+                    ON CONFLICT (user_id) DO UPDATE SET
+                        encrypted_key = EXCLUDED.encrypted_key,
+                        p2pkh_address = EXCLUDED.p2pkh_address,
+                        bech32_address = EXCLUDED.bech32_address,
+                        updated_at = CURRENT_TIMESTAMP
+                """, user_id, enc_wif, p2pkh, bech32)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("""
+                    INSERT INTO user_payment_accounts (user_id, encrypted_key, p2pkh_address, bech32_address, updated_at)
+                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(user_id) DO UPDATE SET
+                        encrypted_key = excluded.encrypted_key,
+                        p2pkh_address = excluded.p2pkh_address,
+                        bech32_address = excluded.bech32_address,
+                        updated_at = CURRENT_TIMESTAMP
+                """, (user_id, enc_wif, p2pkh, bech32))
+                await db.commit()
+
+        # Also sync to user_ltc_wallets for profile commands
+        await self.link_user_ltc(user_id, bech32)
+
+        return {
+            "p2pkh": p2pkh,
+            "bech32": bech32,
+            "p2sh": key.p2sh_address,
+            "compressed": key.compressed
+        }
+
+    async def get_user_wallet_account(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """Retrieve user's payment account metadata."""
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("""
+                    SELECT user_id, encrypted_key, p2pkh_address, bech32_address, deposit_address, balance_ltc
+                    FROM user_payment_accounts WHERE user_id = $1
+                """, user_id)
+                if not row:
+                    return None
+                return {
+                    "user_id": row["user_id"],
+                    "has_key": bool(row["encrypted_key"]),
+                    "p2pkh_address": row["p2pkh_address"],
+                    "bech32_address": row["bech32_address"],
+                    "deposit_address": row["deposit_address"],
+                    "balance_ltc": float(row["balance_ltc"] or 0.0)
+                }
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute("""
+                    SELECT user_id, encrypted_key, p2pkh_address, bech32_address, deposit_address, balance_ltc
+                    FROM user_payment_accounts WHERE user_id = ?
+                """, (user_id,))
+                row = await cursor.fetchone()
+                if not row:
+                    return None
+                return {
+                    "user_id": row["user_id"],
+                    "has_key": bool(row["encrypted_key"]),
+                    "p2pkh_address": row["p2pkh_address"],
+                    "bech32_address": row["bech32_address"],
+                    "deposit_address": row["deposit_address"],
+                    "balance_ltc": float(row["balance_ltc"] or 0.0)
+                }
+
+    async def get_user_signing_key(self, user_id: int):
+        """Retrieve and decrypt the user's LitecoinKey for transaction signing."""
+        from utils.ltc_sender import LitecoinKey, decrypt_wif
+        enc_key = None
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                enc_key = await conn.fetchval(
+                    "SELECT encrypted_key FROM user_payment_accounts WHERE user_id = $1",
+                    user_id
+                )
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute(
+                    "SELECT encrypted_key FROM user_payment_accounts WHERE user_id = ?",
+                    (user_id,)
+                )
+                row = await cursor.fetchone()
+                if row:
+                    enc_key = row[0]
+
+        if not enc_key:
+            return None
+
+        try:
+            wif = decrypt_wif(enc_key)
+            return LitecoinKey.from_wif(wif)
+        except Exception:
+            return None
+
+    async def remove_user_wallet_key(self, user_id: int) -> bool:
+        """Remove private key while keeping deposit history."""
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                res = await conn.execute(
+                    "UPDATE user_payment_accounts SET encrypted_key = NULL, updated_at = CURRENT_TIMESTAMP WHERE user_id = $1",
+                    user_id
+                )
+                return "UPDATE 1" in res
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute(
+                    "UPDATE user_payment_accounts SET encrypted_key = NULL, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?",
+                    (user_id,)
+                )
+                await db.commit()
+                return cursor.rowcount > 0
+
+    async def get_user_deposit_balance(self, user_id: int) -> float:
+        """Retrieve user's internal deposit balance."""
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                val = await conn.fetchval(
+                    "SELECT balance_ltc FROM user_payment_accounts WHERE user_id = $1",
+                    user_id
+                )
+                return float(val or 0.0)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                cursor = await db.execute(
+                    "SELECT balance_ltc FROM user_payment_accounts WHERE user_id = ?",
+                    (user_id,)
+                )
+                row = await cursor.fetchone()
+                return float(row[0]) if row and row[0] is not None else 0.0
+
+    async def update_user_deposit_balance(self, user_id: int, delta_ltc: float) -> float:
+        """Increment or decrement internal deposit balance."""
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                val = await conn.fetchval("""
+                    INSERT INTO user_payment_accounts (user_id, balance_ltc, updated_at)
+                    VALUES ($1, GREATEST(0.0, $2), CURRENT_TIMESTAMP)
+                    ON CONFLICT (user_id) DO UPDATE SET
+                        balance_ltc = GREATEST(0.0, COALESCE(user_payment_accounts.balance_ltc, 0.0) + $2),
+                        updated_at = CURRENT_TIMESTAMP
+                    RETURNING balance_ltc
+                """, user_id, delta_ltc)
+                return float(val or 0.0)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("""
+                    INSERT INTO user_payment_accounts (user_id, balance_ltc, updated_at)
+                    VALUES (?, MAX(0.0, ?), CURRENT_TIMESTAMP)
+                    ON CONFLICT(user_id) DO UPDATE SET
+                        balance_ltc = MAX(0.0, COALESCE(balance_ltc, 0.0) + ?),
+                        updated_at = CURRENT_TIMESTAMP
+                """, (user_id, delta_ltc, delta_ltc))
+                await db.commit()
+                cursor = await db.execute("SELECT balance_ltc FROM user_payment_accounts WHERE user_id = ?", (user_id,))
+                row = await cursor.fetchone()
+                return float(row[0]) if row else 0.0
+
+    async def transfer_internal_balance(self, sender_id: int, receiver_id: int, amount_ltc: float) -> bool:
+        """Instantly transfer internal deposit balance between two Discord users (zero fee)."""
+        if amount_ltc <= 0:
+            return False
+        sender_bal = await self.get_user_deposit_balance(sender_id)
+        if sender_bal < amount_ltc:
+            return False
+
+        await self.update_user_deposit_balance(sender_id, -amount_ltc)
+        await self.update_user_deposit_balance(receiver_id, amount_ltc)
+        return True
 
     # ==========================================
     # SHOP ORDERS & INVOICES

@@ -44,7 +44,7 @@ class Economy(commands.Cog):
     # ==========================================
     # 1. BALANCE & PROFILES
     # ==========================================
-    @commands.command(name="balance", aliases=["bal", "wallet", "bank"], help="Check your or another member's bank and wallet balance.")
+    @commands.command(name="balance", aliases=["bal", "bank"], help="Check your or another member's bank and wallet balance.")
     async def balance(self, ctx: commands.Context, member: Optional[discord.Member] = None):
         target = member or ctx.author
         eco = await db.get_economy(ctx.guild.id, target.id)
@@ -336,8 +336,8 @@ class Economy(commands.Cog):
     # ==========================================
     # 8. PAY / TRANSFER
     # ==========================================
-    @commands.command(name="pay", aliases=["transfer", "give"], help="Transfer coins to another member. E.g. $pay @user 500")
-    async def pay(self, ctx: commands.Context, recipient: discord.Member, amount: int):
+    @commands.command(name="paycoins", aliases=["transfer", "give", "givecoins"], help="Transfer coins to another member. E.g. $paycoins @user 500")
+    async def paycoins(self, ctx: commands.Context, recipient: discord.Member, amount: int):
         if recipient.bot or recipient.id == ctx.author.id:
             return await ctx.send(embed=error_embed("Invalid Recipient", "Cannot transfer coins to bots or yourself!"))
 
