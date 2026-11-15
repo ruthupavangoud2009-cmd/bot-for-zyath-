@@ -80,7 +80,7 @@ class Branding(commands.Cog):
             ctx.author.id == ctx.guild.owner_id
             or ctx.author.guild_permissions.administrator
             or ctx.author.guild_permissions.manage_guild
-            or ctx.author.id in getattr(self.bot, "owner_ids", set())
+            or ctx.author.id in (getattr(self.bot, "owner_ids", None) or set())
         ))
 
     @commands.group(name="botedit", aliases=["setbot", "botbrand"], invoke_without_command=True)
@@ -212,6 +212,11 @@ class Branding(commands.Cog):
                 await ctx.guild.me.edit(banner=None, reason=f"Server branding reset by {ctx.author}")
             elif field == "bio":
                 await ctx.guild.me.edit(bio="", reason=f"Server branding reset by {ctx.author}")
+            elif field is None:
+                await ctx.guild.me.edit(
+                    nick=None, avatar=None, banner=None, bio="",
+                    reason=f"All server branding reset by {ctx.author}"
+                )
             await self._reset(ctx.guild.id, {"avatar": "avatar_url", "banner": "banner_url"}.get(field, field) if field else None)
             await ctx.send(embed=success_embed("Branding reset", f"Reset **{field or 'all branding'}** for this server."))
         except (discord.HTTPException, ValueError) as exc:
