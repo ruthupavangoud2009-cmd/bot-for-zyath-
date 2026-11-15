@@ -332,6 +332,24 @@ CREATE TABLE IF NOT EXISTS shop_legit_vouches (
     PRIMARY KEY (guild_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS guild_branding (
+    guild_id BIGINT PRIMARY KEY,
+    display_name TEXT,
+    avatar_url TEXT,
+    banner_url TEXT,
+    bio TEXT,
+    color INTEGER DEFAULT 5793266
+);
+
+CREATE TABLE IF NOT EXISTS guild_branding (
+    guild_id INTEGER PRIMARY KEY,
+    display_name TEXT,
+    avatar_url TEXT,
+    banner_url TEXT,
+    bio TEXT,
+    color INTEGER DEFAULT 5793266
+);
+
 CREATE TABLE IF NOT EXISTS shop_config (
     guild_id BIGINT PRIMARY KEY,
     shop_name TEXT DEFAULT 'Kyoka Shop',
@@ -3684,6 +3702,51 @@ class Database:
                 """, (guild_id, receipt_id, action, staff_id, details))
                 await db.commit()
                 return cursor.lastrowid
+
+
+    # ==========================================
+    # PER-SERVER BOT BRANDING
+    # ==========================================
+    async def get_guild_branding(self, guild_id: int) -> Dict[str, Any]:
+        defaults = {"display_name": None, "avatar_url": None, "banner_url": None, "bio": None, "color": 5793266}
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT display_name, avatar_url, banner_url, bio, color FROM guild_branding WHERE guild_id = $1", guild_id)
+                return {**defaults, **dict(row)} if row else defaults
+        async with aiosqlite.connect(self.sqlite_path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute("SELECT display_name, avatar_url, banner_url, bio, color FROM guild_branding WHERE guild_id = ?", (guild_id,))
+            row = await cur.fetchone()
+            return {**defaults, **dict(row)} if row else defaults
+
+    async def set_guild_branding(self, guild_id: int, **fields) -> None:
+        allowed = {"display_name", "avatar_url", "banner_url", "bio", "color"}
+        clean = {k: v for k, v in fields.items() if k in allowed}
+        if not clean:
+            return
+        current = await self.get_guild_branding(guild_id)
+        current.update(clean)
+        values = (guild_id, current["display_name"], current["avatar_url"], current["banner_url"], current["bio"], current["color"])
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO guild_branding (guild_id, display_name, avatar_url, banner_url, bio, color)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    ON CONFLICT (guild_id) DO UPDATE SET
+                    display_name=EXCLUDED.display_name, avatar_url=EXCLUDED.avatar_url,
+                    banner_url=EXCLUDED.banner_url, bio=EXCLUDED.bio, color=EXCLUDED.color
+                """, *values)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("""
+                    INSERT INTO guild_branding (guild_id, display_name, avatar_url, banner_url, bio, color)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(guild_id) DO UPDATE SET
+                    display_name=excluded.display_name, avatar_url=excluded.avatar_url,
+                    banner_url=excluded.banner_url, bio=excluded.bio, color=excluded.color
+                """, values)
+                await db.commit()
+
 
 db = Database()
 
