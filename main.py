@@ -97,6 +97,7 @@ class KyokaBot(commands.Bot):
             "cogs.slash",
             "cogs.premium",
             "cogs.levels",
+            "cogs.branding",
             "cogs.autoresponder",
             "cogs.ltc",
             "cogs.feedback",
