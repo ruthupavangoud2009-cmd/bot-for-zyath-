@@ -44,16 +44,20 @@ class Levels(commands.Cog):
         reached = [r for r in rewards if new_level >= int(r["level"])]
         reward_text = ""
         if reached:
-            highest = max(reached, key=lambda r: int(r["level"]))
-            role = message.guild.get_role(int(highest["role_id"]))
-            if role and role not in message.author.roles:
-                try:
-                    await message.author.add_roles(role, reason=f"Reached level {new_level}")
-                    reward_text = f"\n🏅 **Milestone reward:** {role.mention}"
-                except discord.Forbidden:
-                    reward_text = "\n⚠️ I couldn't assign the milestone role. Check my Manage Roles permission and role position."
-
-        embed = standard_embed(
+            earned_roles = []
+            failed_roles = []
+            for reward in sorted(reached, key=lambda r: int(r["level"])):
+                role = message.guild.get_role(int(reward["role_id"]))
+                if role and role not in message.author.roles:
+                    try:
+                        await message.author.add_roles(role, reason=f"Reached level {new_level} milestone")
+                        earned_roles.append(role)
+                    except discord.Forbidden:
+                        failed_roles.append(role)
+            if earned_roles:
+                reward_text = f"\\n🏅 **Milestone rewards:** " + ", ".join(role.mention for role in earned_roles)
+            if failed_roles:
+                reward_text += "\\n⚠️ Some milestone roles could not be assigned. Check my Manage Roles permission and role position.\n\n        embed = standard_embed(
             title="🎉 LEVEL UP!",
             description=f"Congratulations {message.author.mention}! You reached **Level {new_level}**! 🚀{reward_text}",
             color=0x57F287,
