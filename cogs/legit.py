@@ -134,6 +134,13 @@ class LegitPanelView(discord.ui.View):
         cfg = await db.get_shop_config(interaction.guild_id)
         shop_title = cfg.get("shop_name") or get_bot_name()
 
+        # Refresh the public panel itself so every visitor sees the real DB count.
+        try:
+            fresh_embed = build_legit_panel_embed(shop_title, interaction.guild, total)
+            await interaction.message.edit(embed=fresh_embed, view=self)
+        except (discord.Forbidden, discord.HTTPException, AttributeError):
+            pass
+
         tier_title, stars = get_reputation_tier(total)
 
         if added:
