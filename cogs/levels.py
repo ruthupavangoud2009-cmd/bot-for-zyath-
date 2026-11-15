@@ -55,9 +55,11 @@ class Levels(commands.Cog):
                     except discord.Forbidden:
                         failed_roles.append(role)
             if earned_roles:
-                reward_text = f"\\n🏅 **Milestone rewards:** " + ", ".join(role.mention for role in earned_roles)
+                reward_text = "\\n🏅 **Milestone rewards:** " + ", ".join(role.mention for role in earned_roles)
             if failed_roles:
-                reward_text += "\\n⚠️ Some milestone roles could not be assigned. Check my Manage Roles permission and role position.\n\n        embed = standard_embed(
+                reward_text += "\\n⚠️ Some milestone roles could not be assigned. Check my Manage Roles permission and role position."
+
+        embed = standard_embed(
             title="🎉 LEVEL UP!",
             description=f"Congratulations {message.author.mention}! You reached **Level {new_level}**! 🚀{reward_text}",
             color=0x57F287,
