@@ -221,6 +221,16 @@ class Legit(commands.Cog):
         if target_chan.id != ctx.channel.id:
             await ctx.send(embed=success_embed("Panel Sent", f"Legit panel posted in {target_chan.mention}!"))
 
+    @legit_group.command(name="name")
+    @commands.has_permissions(administrator=True)
+    async def legit_shop_name_cmd(self, ctx: commands.Context, *, shop_name: str):
+        """Customize the shop name shown by the legit panel."""
+        clean_name = shop_name.strip()
+        if not clean_name or len(clean_name) > 80:
+            return await ctx.send(embed=error_embed("Invalid Shop Name", "Choose a name between 1 and 80 characters."))
+        await db.set_shop_config(ctx.guild.id, shop_name=clean_name)
+        await ctx.send(embed=success_embed("Shop Branding Updated", f"Your shop is now branded as **{discord.utils.escape_markdown(clean_name)}**. Repost the legit panel with `$legit panel` to apply the new title."))
+
     @legit_group.command(name="check")
     async def legit_check_cmd(self, ctx: commands.Context):
         """View the list of members who vouched for the shop."""
