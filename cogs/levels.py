@@ -123,7 +123,7 @@ class Levels(commands.Cog):
     @levels_group.command(name="disable")
     async def levels_disable(self, ctx: commands.Context):
         await db.set_level_settings(ctx.guild.id, enabled=False)
-        await ctx.send(embed=success_embed("Levels Disabled", "XP earning and level announcements are now paused. Existing levels are محفوظ and will remain."))
+        await ctx.send(embed=success_embed("Levels Disabled", "XP earning and level announcements are now paused. Existing levels are saved and will remain."))
 
     @levels_group.command(name="channel")
     async def levels_channel(self, ctx: commands.Context, channel: discord.TextChannel = None):
