@@ -249,6 +249,11 @@ CREATE TABLE IF NOT EXISTS level_settings (
     channel_id BIGINT
 );
 
+CREATE TABLE IF NOT EXISTS level_role_rewards (
+    guild_id BIGINT NOT NULL, level INTEGER NOT NULL, role_id BIGINT NOT NULL,
+    PRIMARY KEY (guild_id, level), UNIQUE (guild_id, role_id)
+);
+
 CREATE TABLE IF NOT EXISTS reaction_roles (
     id SERIAL PRIMARY KEY,
     guild_id BIGINT NOT NULL,
@@ -325,6 +330,24 @@ CREATE TABLE IF NOT EXISTS shop_legit_vouches (
     user_id BIGINT NOT NULL,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS guild_branding (
+    guild_id BIGINT PRIMARY KEY,
+    display_name TEXT,
+    avatar_url TEXT,
+    banner_url TEXT,
+    bio TEXT,
+    color INTEGER DEFAULT 5793266
+);
+
+CREATE TABLE IF NOT EXISTS guild_branding (
+    guild_id INTEGER PRIMARY KEY,
+    display_name TEXT,
+    avatar_url TEXT,
+    banner_url TEXT,
+    bio TEXT,
+    color INTEGER DEFAULT 5793266
 );
 
 CREATE TABLE IF NOT EXISTS shop_config (
@@ -586,6 +609,11 @@ CREATE TABLE IF NOT EXISTS level_settings (
     guild_id INTEGER PRIMARY KEY,
     enabled BOOLEAN DEFAULT 1,
     channel_id INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS level_role_rewards (
+    guild_id INTEGER NOT NULL, level INTEGER NOT NULL, role_id INTEGER NOT NULL,
+    PRIMARY KEY (guild_id, level), UNIQUE (guild_id, role_id)
 );
 
 CREATE TABLE IF NOT EXISTS reaction_roles (
@@ -2025,6 +2053,61 @@ class Database:
                     ON CONFLICT(guild_id, user_id) DO UPDATE SET xp = excluded.xp, level = excluded.level
                 """, (guild_id, user_id, xp, level))
                 await db.commit()
+
+    async def get_level_settings(self, guild_id: int) -> Dict[str, Any]:
+        default = {"guild_id": guild_id, "enabled": False, "channel_id": None}
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT * FROM level_settings WHERE guild_id=$1", guild_id)
+                return dict(row) if row else default
+        async with aiosqlite.connect(self.sqlite_path) as conn:
+            conn.row_factory = aiosqlite.Row
+            cur = await conn.execute("SELECT * FROM level_settings WHERE guild_id=?", (guild_id,))
+            row = await cur.fetchone()
+            if not row: return default
+            data = dict(row); data["enabled"] = bool(data.get("enabled")); return data
+
+    async def set_level_settings(self, guild_id: int, **kwargs) -> bool:
+        old = await self.get_level_settings(guild_id)
+        enabled = bool(kwargs.get("enabled", old["enabled"]))
+        channel_id = kwargs.get("channel_id", old["channel_id"])
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("INSERT INTO level_settings(guild_id,enabled,channel_id) VALUES($1,$2,$3) ON CONFLICT(guild_id) DO UPDATE SET enabled=EXCLUDED.enabled,channel_id=EXCLUDED.channel_id", guild_id, enabled, channel_id)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as conn:
+                await conn.execute("INSERT INTO level_settings(guild_id,enabled,channel_id) VALUES(?,?,?) ON CONFLICT(guild_id) DO UPDATE SET enabled=excluded.enabled,channel_id=excluded.channel_id", (guild_id, int(enabled), channel_id))
+                await conn.commit()
+        return True
+
+    async def set_level_reward(self, guild_id: int, level: int, role_id: int) -> bool:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("INSERT INTO level_role_rewards(guild_id,level,role_id) VALUES($1,$2,$3) ON CONFLICT(guild_id,level) DO UPDATE SET role_id=EXCLUDED.role_id", guild_id, level, role_id)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as conn:
+                await conn.execute("INSERT INTO level_role_rewards(guild_id,level,role_id) VALUES(?,?,?) ON CONFLICT(guild_id,level) DO UPDATE SET role_id=excluded.role_id", (guild_id, level, role_id))
+                await conn.commit()
+        return True
+
+    async def remove_level_reward(self, guild_id: int, level: int) -> bool:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                res = await conn.execute("DELETE FROM level_role_rewards WHERE guild_id=$1 AND level=$2", guild_id, level)
+                return res.endswith("1")
+        async with aiosqlite.connect(self.sqlite_path) as conn:
+            cur = await conn.execute("DELETE FROM level_role_rewards WHERE guild_id=? AND level=?", (guild_id, level))
+            await conn.commit(); return cur.rowcount > 0
+
+    async def get_level_rewards(self, guild_id: int) -> List[Dict[str, Any]]:
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT level,role_id FROM level_role_rewards WHERE guild_id=$1 ORDER BY level", guild_id)
+                return [dict(row) for row in rows]
+        async with aiosqlite.connect(self.sqlite_path) as conn:
+            conn.row_factory = aiosqlite.Row
+            cur = await conn.execute("SELECT level,role_id FROM level_role_rewards WHERE guild_id=? ORDER BY level", (guild_id,))
+            return [dict(row) for row in await cur.fetchall()]
 
     async def reset_guild_levels(self, guild_id: int):
         if self.is_postgres and self.pool:
@@ -3619,6 +3702,51 @@ class Database:
                 """, (guild_id, receipt_id, action, staff_id, details))
                 await db.commit()
                 return cursor.lastrowid
+
+
+    # ==========================================
+    # PER-SERVER BOT BRANDING
+    # ==========================================
+    async def get_guild_branding(self, guild_id: int) -> Dict[str, Any]:
+        defaults = {"display_name": None, "avatar_url": None, "banner_url": None, "bio": None, "color": 5793266}
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT display_name, avatar_url, banner_url, bio, color FROM guild_branding WHERE guild_id = $1", guild_id)
+                return {**defaults, **dict(row)} if row else defaults
+        async with aiosqlite.connect(self.sqlite_path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute("SELECT display_name, avatar_url, banner_url, bio, color FROM guild_branding WHERE guild_id = ?", (guild_id,))
+            row = await cur.fetchone()
+            return {**defaults, **dict(row)} if row else defaults
+
+    async def set_guild_branding(self, guild_id: int, **fields) -> None:
+        allowed = {"display_name", "avatar_url", "banner_url", "bio", "color"}
+        clean = {k: v for k, v in fields.items() if k in allowed}
+        if not clean:
+            return
+        current = await self.get_guild_branding(guild_id)
+        current.update(clean)
+        values = (guild_id, current["display_name"], current["avatar_url"], current["banner_url"], current["bio"], current["color"])
+        if self.is_postgres and self.pool:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO guild_branding (guild_id, display_name, avatar_url, banner_url, bio, color)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    ON CONFLICT (guild_id) DO UPDATE SET
+                    display_name=EXCLUDED.display_name, avatar_url=EXCLUDED.avatar_url,
+                    banner_url=EXCLUDED.banner_url, bio=EXCLUDED.bio, color=EXCLUDED.color
+                """, *values)
+        else:
+            async with aiosqlite.connect(self.sqlite_path) as db:
+                await db.execute("""
+                    INSERT INTO guild_branding (guild_id, display_name, avatar_url, banner_url, bio, color)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(guild_id) DO UPDATE SET
+                    display_name=excluded.display_name, avatar_url=excluded.avatar_url,
+                    banner_url=excluded.banner_url, bio=excluded.bio, color=excluded.color
+                """, values)
+                await db.commit()
+
 
 db = Database()
 

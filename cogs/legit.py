@@ -134,6 +134,13 @@ class LegitPanelView(discord.ui.View):
         cfg = await db.get_shop_config(interaction.guild_id)
         shop_title = cfg.get("shop_name") or get_bot_name()
 
+        # Refresh the public panel itself so every visitor sees the real DB count.
+        try:
+            fresh_embed = build_legit_panel_embed(shop_title, interaction.guild, total)
+            await interaction.message.edit(embed=fresh_embed, view=self)
+        except (discord.Forbidden, discord.HTTPException, AttributeError):
+            pass
+
         tier_title, stars = get_reputation_tier(total)
 
         if added:
@@ -213,6 +220,16 @@ class Legit(commands.Cog):
         await target_chan.send(embed=embed, view=view)
         if target_chan.id != ctx.channel.id:
             await ctx.send(embed=success_embed("Panel Sent", f"Legit panel posted in {target_chan.mention}!"))
+
+    @legit_group.command(name="name")
+    @commands.has_permissions(administrator=True)
+    async def legit_shop_name_cmd(self, ctx: commands.Context, *, shop_name: str):
+        """Customize the shop name shown by the legit panel."""
+        clean_name = shop_name.strip()
+        if not clean_name or len(clean_name) > 80:
+            return await ctx.send(embed=error_embed("Invalid Shop Name", "Choose a name between 1 and 80 characters."))
+        await db.set_shop_config(ctx.guild.id, shop_name=clean_name)
+        await ctx.send(embed=success_embed("Shop Branding Updated", f"Your shop is now branded as **{discord.utils.escape_markdown(clean_name)}**. Repost the legit panel with `$legit panel` to apply the new title."))
 
     @legit_group.command(name="check")
     async def legit_check_cmd(self, ctx: commands.Context):
