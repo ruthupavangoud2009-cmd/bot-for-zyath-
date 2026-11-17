@@ -151,8 +151,35 @@ class Owner(commands.Cog):
             "⚡ No-Prefix Management",
             "• `$np add <@user|id>` - Grant no-prefix access (run commands without prefix `$`).\n"
             "• `$np remove <@user|id>` - Revoke no-prefix access.\n"
-            "• `$np list` - List all authorized no-prefix users."
+            "• `$np list` - List all authorized no-prefix users.\\n"
+            "• `$np disable` - Require the prefix for everyone.\\n"
+            "• `$np enable` - Restore authorized no-prefix access.\\n"
+            "• `$np status` - Show the current setting."
         ))
+
+
+    @np_group.command(name="disable", aliases=["off", "stop"])
+    @is_bot_owner()
+    async def np_disable(self, ctx: commands.Context):
+        from utils.config_manager import set_config_value
+        if not set_config_value("no_prefix_enabled", False):
+            return await ctx.send(embed=error_embed("Save Failed", "Could not save the setting."))
+        await ctx.send(embed=success_embed("No-Prefix Disabled", "All commands now require the configured prefix."))
+
+    @np_group.command(name="enable", aliases=["on", "start"])
+    @is_bot_owner()
+    async def np_enable(self, ctx: commands.Context):
+        from utils.config_manager import set_config_value
+        if not set_config_value("no_prefix_enabled", True):
+            return await ctx.send(embed=error_embed("Save Failed", "Could not save the setting."))
+        await ctx.send(embed=success_embed("No-Prefix Enabled", "Authorized no-prefix access has been restored."))
+
+    @np_group.command(name="status")
+    @is_bot_owner()
+    async def np_status(self, ctx: commands.Context):
+        from utils.config_manager import get_config_value
+        state = "ENABLED" if get_config_value("no_prefix_enabled", True) else "DISABLED"
+        await ctx.send(embed=info_embed("No-Prefix Status", f"Global no-prefix access is **{state}**."))
 
     @np_group.command(name="add", help="Authorize a user to run all commands without prefix.")
     @is_bot_owner()

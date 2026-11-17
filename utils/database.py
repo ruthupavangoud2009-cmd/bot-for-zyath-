@@ -18,17 +18,9 @@ if not os.path.exists(SQLITE_PATH) and os.path.exists(OLD_SQLITE_PATH):
         pass
 
 def get_database_url() -> Optional[str]:
+    """Read credentials only from the host environment, never config.json."""
     url = os.getenv("DATABASE_URL")
-    if url and url.strip():
-        return url.strip()
-    if os.path.exists(CONFIG_PATH):
-        try:
-            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                return data.get("database_url")
-        except Exception:
-            pass
-    return None
+    return url.strip() if url and url.strip() else None
 
 PG_SCHEMA = """
 CREATE TABLE IF NOT EXISTS guild_settings (

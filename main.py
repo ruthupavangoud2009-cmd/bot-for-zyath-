@@ -34,7 +34,7 @@ DEFAULT_PREFIX = get_config_prefix() or ENV_PREFIX or "$"
 def get_config_owner_ids():
     return {1505515188991033409}
 
-from utils.config_manager import get_owner_ids
+from utils.config_manager import get_owner_ids, get_config_value
 
 async def get_prefix(bot, message):
     guild_prefix = DEFAULT_PREFIX
@@ -47,7 +47,7 @@ async def get_prefix(bot, message):
 
     # Check if author is an owner, staff, or in no-prefix whitelist
     author_id = message.author.id if message.author else 0
-    if author_id in get_owner_ids() or db.is_no_prefix_cached(author_id) or db.is_staff_cached(author_id):
+    if get_config_value('no_prefix_enabled', True) and (author_id in get_owner_ids() or db.is_no_prefix_cached(author_id) or db.is_staff_cached(author_id)):
         return (guild_prefix, "")
     return guild_prefix
 

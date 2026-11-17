@@ -14,6 +14,17 @@ class ShopCommands(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+
+    @commands.command(name="shopname", aliases=["setshopname", "storename"])
+    @commands.has_permissions(administrator=True)
+    async def shop_name_cmd(self, ctx: commands.Context, *, name: str):
+        """Set the shop name used in checkout and receipt panels."""
+        clean = name.strip()
+        if not clean or len(clean) > 60:
+            return await ctx.send(embed=error_embed("Invalid shop name", "Use 1 to 60 characters."))
+        await db.set_shop_config(ctx.guild.id, shop_name=clean)
+        await ctx.send(embed=success_embed("Shop name updated", f"Shop branding is now **{clean}**. Redeploy the panel with `$shoppanel`."))
+
     # ==========================================
     # 1. PRODUCT COMMANDS ($product ...)
     # ==========================================

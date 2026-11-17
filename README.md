@@ -1,4 +1,4 @@
-# ⚡ Kyoka Shop — All-in-One Multi-Purpose Discord Bot
+# ⚡ KYOKA Shop — All-in-One Discord Store Bot
 
 A state-of-the-art, feature-complete Discord bot built with **discord.py 2.x**, **aiosqlite**, and modern Discord UI components (Select Menus, Buttons, Modals).
 
@@ -418,3 +418,13 @@ python main.py
 - All credentials should be stored in `.env`.
 - Dual database support: seamlessly connects to **Supabase PostgreSQL** or **SQLite** with automated fallback.
 - Database stores configuration, vouches, tickets, giveaways, economy, automod, bot staff, no-prefix whitelist, premium records, levels, and auto-responders locally with zero external telemetry.
+
+
+## No-prefix control
+Use `$np disable` to require the configured prefix for everyone, `$np enable` to restore authorized no-prefix access, and `$np status` to check the setting.
+
+## Security
+Set `DATABASE_URL` only in your hosting provider's Environment settings. If a real database URL was committed to GitHub, rotate the Supabase database password and update the host variable. Never commit bot tokens, API keys, or webhook secrets.
+
+## SellAuth
+SellAuth API credentials and webhook secrets must be stored as host environment variables. Do not enable live digital delivery until the store's exact webhook signature and payload have been verified with a test order.
