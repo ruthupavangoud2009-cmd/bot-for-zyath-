@@ -15,7 +15,7 @@ class ShopCommands(commands.Cog):
         self.bot = bot
 
 
-    @commands.command(name="shopname", aliases=["setshopname", "storename"])
+    @commands.command(name="shopname", aliases=["storename"])
     @commands.has_permissions(administrator=True)
     async def shop_name_cmd(self, ctx: commands.Context, *, name: str):
         """Set the shop name used in checkout and receipt panels."""
